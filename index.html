@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Expenses</title>
+<style>
+  :root {
+    --accent: #26215C; --accent-ink: #ffffff;
+    --bg: #f6f6f8; --card: #ffffff; --text: #1a1a1a; --muted: #6b6b72;
+    --line: rgba(0,0,0,0.08); --track: #ececf0;
+    --ok: #1D9E75; --warn: #EF9F27; --over: #E24B4A; --danger: #A32D2D;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #2f296e; --bg: #121216; --card: #1c1c22; --text: #f2f2f4;
+      --muted: #9a9aa2; --line: rgba(255,255,255,0.10); --track: #2a2a32;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px 40px; }
+  button { font: inherit; cursor: pointer; }
+  .notice { background: var(--warn); color: #412402; border-radius: var(--radius);
+            padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
+  .hdr { display:flex; align-items:center; justify-content:space-between; padding:6px 2px 12px; }
+  .hdr .month { display:flex; align-items:center; gap:12px; }
+  .hdr .month b { font-weight:500; font-size:16px; }
+  .iconbtn { width:44px; height:44px; min-width:44px; border-radius:50%; border:1px solid var(--line);
+             background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .summary { background:var(--accent); color:var(--accent-ink); border-radius:20px; padding:20px;
+             display:flex; align-items:center; gap:18px; margin-bottom:16px; }
+  .summary .lbl { font-size:12px; opacity:.75; }
+  .summary .big { font-size:24px; font-weight:500; margin:2px 0 4px; }
+  .summary .sub { font-size:12px; opacity:.9; }
+  .ring-wrap { position:relative; width:92px; height:92px; flex:0 0 92px; }
+  .ring-wrap .pct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .ring-wrap .pct b { font-size:19px; font-weight:500; }
+  .ring-wrap .pct span { font-size:10px; opacity:.8; }
+  .sec-title { font-size:13px; font-weight:500; color:var(--muted); margin:6px 2px 8px; }
+  .empty { color:var(--muted); font-size:14px; padding:8px 2px 16px; }
+  .cat-row { display:flex; align-items:center; gap:12px; padding:10px 4px; }
+  .tile { width:34px; height:34px; min-width:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+  .dot { width:8px; height:8px; border-radius:99px; flex:0 0 8px; }
+  .grow { flex:1; min-width:0; }
+  .row-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .row-top .name { font-size:14px; font-weight:500; }
+  .row-top .nums { font-size:12px; color:var(--muted); }
+  .row-top .nums.over { color:var(--over); }
+  .bar { height:6px; background:var(--track); border-radius:99px; margin-top:6px; overflow:hidden; }
+  .bar > i { display:block; height:100%; border-radius:99px; }
+  .bar > i.normal { background:var(--ok); }
+  .bar > i.warn { background:var(--warn); }
+  .bar > i.over { background:var(--over); }
+  .exp-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+             padding:10px 2px; border-bottom:1px solid var(--line); width:100%; text-align:left;
+             background:none; border-left:none; border-right:none; border-top:none; color:inherit; }
+  .exp-row:last-child { border-bottom:none; }
+  .exp-row .desc { font-size:14px; }
+  .exp-row .meta { font-size:11px; color:var(--muted); }
+  .exp-row .amt { font-size:14px; font-weight:500; white-space:nowrap; }
+  [hidden] { display:none !important; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex;
+                   align-items:flex-end; justify-content:center; z-index:10; }
+  .modal-card { background:var(--card); color:var(--text); width:100%; max-width:420px;
+                border-radius:18px 18px 0 0; padding:18px 16px 22px; }
+  @media (min-width:480px){ .modal-overlay{ align-items:center; } .modal-card{ border-radius:18px; } }
+  .modal-card h2 { font-size:16px; font-weight:500; margin:0 0 12px; }
+  .field { margin-bottom:12px; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .field input, .field select {
+    width:100%; font:inherit; padding:10px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px;
+  }
+  .field .err { color:var(--danger); font-size:12px; margin-top:4px; }
+  .modal-card .err { color:var(--danger); font-size:12px; margin:2px 0 8px; }
+  .modal-actions { display:flex; gap:10px; margin-top:6px; }
+  .btn { flex:1; min-height:46px; border-radius:12px; border:1px solid var(--line);
+         background:var(--card); color:var(--text); font-weight:500; }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  .btn.danger { background:none; color:var(--danger); border-color:var(--danger); }
+  .linkbtn { background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 0; }
+  .cat-edit { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .cat-edit input[type=text] { flex:2; min-width:0; }
+  .cat-edit input[type=number] { flex:1; min-width:0; width:90px; }
+  .cat-edit input { font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
+                    background:var(--bg); color:var(--text); min-height:44px; }
+  .cat-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
+                     background:none; color:var(--danger); padding:0 10px; white-space:nowrap; }
+  .settings-add { display:flex; gap:8px; margin-top:14px; }
+  .settings-msg { color:var(--danger); font-size:12px; margin-top:4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="storage-notice" class="notice" hidden>Data won't be saved in this browser session.</div>
+  <div id="content"></div>
+  <div id="modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true"></div>
+  </div>
+</div>
+<script>
+"use strict";
+
+const KEY = "expense-tracker-v1";
+const BACKUP_KEY = "expense-tracker-v1-backup";
+let storageAvailable = true;
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
+
+function DEFAULT_STATE() {
+  return {
+    version: 1,
+    categories: [
+      { id: uid(), name: "Food", budget: 700 },
+      { id: uid(), name: "Transport", budget: 300 },
+      { id: uid(), name: "Housing", budget: 1600 },
+    ],
+    expenses: [],
+  };
+}
+
+let state = DEFAULT_STATE();
+
+function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); }
+  catch (e) { storageAvailable = false; state = DEFAULT_STATE(); return; }
+  if (raw == null) { state = DEFAULT_STATE(); save(); return; }
+  try {
+    const parsed = JSON.parse(raw);
+    state = normalize(parsed);
+    const badShape = !parsed || typeof parsed !== "object" || Array.isArray(parsed);
+    const rawCats = parsed && Array.isArray(parsed.categories) ? parsed.categories.length : 0;
+    const rawExps = parsed && Array.isArray(parsed.expenses) ? parsed.expenses.length : 0;
+    if (badShape || state.categories.length < rawCats || state.expenses.length < rawExps) {
+      try { localStorage.setItem(BACKUP_KEY, raw); } catch (_) {}
+    }
+  } catch (e) {
+    try { localStorage.setItem(BACKUP_KEY, raw); } catch (_) {}
+    state = DEFAULT_STATE();
+    save();
+  }
+}
+
+function normalize(obj) {
+  const s = DEFAULT_STATE();
+  const okCat = (c) => c && typeof c.id === "string" && typeof c.name === "string";
+  const okExp = (e) => e && typeof e.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "");
+  if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat);
+  if (obj && Array.isArray(obj.expenses))   s.expenses   = obj.expenses.filter(okExp);
+  s.version = 1;
+  return s;
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) {
+    storageAvailable = false;
+    const n = document.getElementById("storage-notice");
+    if (n) { n.textContent = "Couldn't save — changes will be lost when you close this page."; n.hidden = false; }
+  }
+}
+
+let selectedMonth;
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const monthKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+
+function fmtMonth(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+function shiftMonth(key, delta) {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return monthKey(d);
+}
+
+const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (n) => nf2.format(n);
+
+const centsOf = (n) => { const c = Math.round(Number(n) * 100); return Number.isFinite(c) ? c : 0; };
+const sumCents = (arr) => arr.reduce((t, x) => t + x, 0);
+const fromCents = (c) => c / 100;
+
+const categoryById = (id) => state.categories.find((c) => c.id === id);
+
+function expensesForMonth(key) {
+  return state.expenses
+    .map((e, i) => ({ e, i }))
+    .filter((x) => (x.e.date || "").slice(0, 7) === key)
+    .sort((a, b) => (a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : b.i - a.i))
+    .map((x) => x.e);
+}
+
+function spentCentsByCategory(key) {
+  const m = new Map();
+  for (const e of state.expenses) {
+    if ((e.date || "").slice(0, 7) !== key) continue;
+    const k = categoryById(e.categoryId) ? e.categoryId : "__uncat__";
+    m.set(k, (m.get(k) || 0) + centsOf(e.amount));
+  }
+  return m;
+}
+
+function status(spent, budget) {
+  if (!budget || budget <= 0) return spent > 0 ? "over" : "normal";
+  const p = spent / budget;
+  if (p > 1) return "over";
+  if (p >= 0.8) return "warn";
+  return "normal";
+}
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+const totalBudgetCents = () => sumCents(state.categories.map((c) => centsOf(c.budget)));
+const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
+
+function ringSvg(percent, tone) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("width", "92"); svg.setAttribute("height", "92");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `${Math.round(percent * 100)} percent of budget used`);
+  const track = document.createElementNS(NS, "circle");
+  track.setAttribute("cx","50"); track.setAttribute("cy","50"); track.setAttribute("r","42");
+  track.setAttribute("fill","none"); track.setAttribute("stroke","rgba(255,255,255,0.22)"); track.setAttribute("stroke-width","10");
+  const arc = document.createElementNS(NS, "circle");
+  arc.setAttribute("cx","50"); arc.setAttribute("cy","50"); arc.setAttribute("r","42");
+  arc.setAttribute("fill","none"); arc.setAttribute("stroke-width","10"); arc.setAttribute("stroke-linecap","round");
+  arc.setAttribute("stroke-dasharray","264");
+  arc.setAttribute("stroke-dashoffset", String(264 * (1 - clamp01(percent))));
+  arc.setAttribute("transform","rotate(-90 50 50)");
+  const color = tone === "over" ? "#E24B4A" : tone === "warn" ? "#EF9F27" : "#CECBF6";
+  arc.setAttribute("stroke", color);
+  svg.appendChild(track); svg.appendChild(arc);
+  return svg;
+}
+
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  if (tag === "button" && !("type" in (props || {}))) node.type = "button";
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "className") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k.startsWith("on") && typeof v === "function") node[k.toLowerCase()] = v;
+    else if (v != null) node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c == null) continue;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
+function render() {
+  const root = document.getElementById("content");
+  root.textContent = "";
+  try {
+    root.appendChild(renderHeader());
+    root.appendChild(renderSummary());
+    root.appendChild(renderCategories());
+    root.appendChild(renderRecent());
+    root.appendChild(renderAddButton());
+  } catch (err) {
+    console.error(err);
+    root.appendChild(el("div", { className: "notice", text: "Something went wrong rendering. Reload the page." }));
+  }
+}
+function renderHeader() {
+  return el("div", { className: "hdr" },
+    el("div", { className: "month" },
+      el("button", { className: "iconbtn", "aria-label": "Previous month",
+        onClick: () => { selectedMonth = shiftMonth(selectedMonth, -1); render(); } }, "‹"),
+      el("b", { text: fmtMonth(selectedMonth) }),
+      el("button", { className: "iconbtn", "aria-label": "Next month",
+        onClick: () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); } }, "›"),
+    ),
+    el("button", { className: "iconbtn", "aria-label": "Categories and settings",
+      onClick: () => { if (typeof openSettings === "function") openSettings(); } }, "⚙"),
+  );
+}
+
+function renderSummary() {
+  const spent = monthSpentCents(selectedMonth);
+  const budget = totalBudgetCents();
+  const pct = budget > 0 ? spent / budget : (spent > 0 ? 1 : 0);
+  const tone = status(spent, budget);
+  const left = budget - spent;
+  const wrap = el("div", { className: "ring-wrap" });
+  wrap.appendChild(ringSvg(pct, tone));
+  wrap.appendChild(el("div", { className: "pct" },
+    el("b", { text: `${Math.round(pct * 100)}%` }),
+    el("span", { text: "used" }),
+  ));
+  return el("div", { className: "summary" },
+    wrap,
+    el("div", {},
+      el("div", { className: "lbl", text: "Spent this month" }),
+      el("div", { className: "big", text: `$${money(fromCents(spent))}` }),
+      el("div", { className: "sub", text: left >= 0
+        ? `$${money(fromCents(left))} left of $${money(fromCents(budget))}`
+        : `$${money(fromCents(-left))} over $${money(fromCents(budget))}` }),
+    ),
+  );
+}
+
+const CAT_PALETTE = ["#EF9F27", "#E24B4A", "#1D9E75", "#378ADD", "#7F77DD", "#D4537E", "#0F6E56", "#BA7517"];
+const catColor = (i) => CAT_PALETTE[i % CAT_PALETTE.length];
+
+function fmtDayShort(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function renderCategories() {
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title", text: "Categories" }));
+  if (state.categories.length === 0) {
+    box.appendChild(el("div", { className: "empty", text: "Add a category to get started." }));
+    return box;
+  }
+  const spentMap = spentCentsByCategory(selectedMonth);
+  state.categories.forEach((c, i) => {
+    const spent = spentMap.get(c.id) || 0;
+    const budget = centsOf(c.budget);
+    const tone = status(spent, budget);
+    const width = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
+    const tile = el("div", { className: "tile" });
+    tile.style.background = catColor(i) + "22";
+    const catDot = el("div", { className: "dot" });
+    catDot.style.background = catColor(i);
+    tile.appendChild(catDot);
+    const barFill = el("i", { className: tone });
+    barFill.style.width = width + "%";
+    box.appendChild(el("div", { className: "cat-row" },
+      tile,
+      el("div", { className: "grow" },
+        el("div", { className: "row-top" },
+          el("span", { className: "name", text: c.name }),
+          el("span", { className: "nums" + (tone === "over" ? " over" : ""),
+            text: `$${money(fromCents(spent))} / $${money(fromCents(budget))}` }),
+        ),
+        el("div", { className: "bar" }, barFill),
+      ),
+    ));
+  });
+  return box;
+}
+
+function renderRecent() {
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title", text: "Recent" }));
+  const rows = expensesForMonth(selectedMonth);
+  if (rows.length === 0) {
+    box.appendChild(el("div", { className: "empty", text: `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
+    return box;
+  }
+  rows.forEach((e) => {
+    const cat = categoryById(e.categoryId);
+    const idx = cat ? state.categories.indexOf(cat) : -1;
+    const dot = el("div", { className: "dot" });
+    dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
+    const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
+    box.appendChild(el("button", { className: "exp-row", "data-id": e.id,
+      onClick: () => { if (typeof openEdit === "function") openEdit(e.id); } },
+      el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px;" },
+        dot,
+        el("div", {},
+          el("div", { className: "desc", text: label }),
+          el("div", { className: "meta", text: `${cat ? cat.name : "Uncategorized"} · ${fmtDayShort(e.date)}` }),
+        ),
+      ),
+      el("div", { className: "amt", text: `$${money(fromCents(centsOf(e.amount)))}` }),
+    ));
+  });
+  return box;
+}
+
+const modal = () => document.getElementById("modal");
+const modalCard = () => modal().querySelector(".modal-card");
+
+function openModal(node) {
+  const card = modalCard();
+  card.textContent = "";
+  card.appendChild(node);
+  const h2 = card.querySelector("h2");
+  if (h2) { if (!h2.id) h2.id = "modal-title"; card.setAttribute("aria-labelledby", h2.id); }
+  else card.removeAttribute("aria-labelledby");
+  modal().hidden = false;
+  modal().onclick = (ev) => { if (ev.target === modal()) closeModal(); };
+  const focusTarget = card.querySelector("input, select, textarea, button") || card;
+  if (!focusTarget.hasAttribute("tabindex") && focusTarget === card) focusTarget.tabIndex = -1;
+  focusTarget.focus();
+}
+function closeModal() { modal().hidden = true; modalCard().textContent = ""; }
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !modal().hidden) closeModal();
+});
+
+function renderAddButton() {
+  return el("button", { className: "btn primary", style: "width:100%;margin-top:6px;",
+    onClick: () => {
+      if (state.categories.length === 0) return openNeedCategory();
+      openExpenseForm(null);
+    } }, "Add expense");
+}
+
+function openNeedCategory() {
+  openModal(el("div", {},
+    el("h2", { text: "Add a category first" }),
+    el("p", { className: "empty", text: "You need at least one category before adding an expense." }),
+    el("div", { className: "modal-actions" },
+      el("button", { className: "btn", onClick: closeModal }, "Cancel"),
+      el("button", { className: "btn primary", onClick: () => { closeModal(); if (typeof openSettings === "function") openSettings(); } }, "Open settings"),
+    ),
+  ));
+}
+
+function validateExpenseForm({ amount, categoryId, date }) {
+  const n = Number(amount);
+  if (!amount || !isFinite(n) || n <= 0) return { ok: false, field: "amount", message: "Enter an amount greater than 0." };
+  if (!categoryById(categoryId)) return { ok: false, field: "categoryId", message: "Pick a category." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date))) return { ok: false, field: "date", message: "Pick a valid date." };
+  return { ok: true };
+}
+
+function openEdit(id) { openExpenseForm(id); }
+
+function openExpenseForm(id) {
+  const editing = id != null ? state.expenses.find((e) => e.id === id) : null;
+  const vals = {
+    amount: editing ? String(editing.amount) : "",
+    categoryId: editing ? editing.categoryId : state.categories[0].id,
+    date: editing ? editing.date
+         : (selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`),
+    description: editing ? (editing.description || "") : "",
+  };
+  let deleteArmed = false;
+
+  const amountInput = el("input", { type: "number", step: "0.01", inputmode: "decimal", value: vals.amount });
+  const catSelect = el("select", {},
+    ...state.categories.map((c) => {
+      const o = el("option", { value: c.id, text: c.name });
+      if (c.id === vals.categoryId) o.selected = true;
+      return o;
+    }));
+  const dateInput = el("input", { type: "date", value: vals.date });
+  const descInput = el("input", { type: "text", value: vals.description, maxlength: "80" });
+
+  const errBox = el("div", { className: "err" });
+  const fieldEls = { amount: amountInput, categoryId: catSelect, date: dateInput };
+
+  function submit() {
+    const data = { amount: amountInput.value.trim(), categoryId: catSelect.value, date: dateInput.value };
+    const res = validateExpenseForm(data);
+    errBox.textContent = "";
+    if (!res.ok) {
+      errBox.textContent = res.message;
+      (fieldEls[res.field] || amountInput).focus();
+      return;
+    }
+    if (editing) {
+      editing.amount = Math.round(Number(data.amount) * 100) / 100;
+      editing.categoryId = data.categoryId;
+      editing.date = data.date;
+      editing.description = descInput.value.trim();
+    } else {
+      state.expenses.push({ id: uid(), amount: Math.round(Number(data.amount) * 100) / 100, categoryId: data.categoryId,
+        date: data.date, description: descInput.value.trim() });
+    }
+    save(); closeModal(); render();
+  }
+
+  const actions = el("div", { className: "modal-actions" },
+    el("button", { className: "btn", onClick: closeModal }, "Cancel"),
+    el("button", { className: "btn primary", onClick: submit }, editing ? "Save" : "Add"),
+  );
+
+  const card = el("div", {},
+    el("h2", { text: editing ? "Edit expense" : "New expense" }),
+    field("Amount", amountInput),
+    field("Category", catSelect),
+    field("Date", dateInput),
+    field("Description (optional)", descInput),
+    errBox,
+    actions,
+  );
+
+  if (editing) {
+    const delBtn = el("button", { className: "btn danger" }, "Delete");
+    let deleteTimer = null;
+    delBtn.onclick = () => {
+      if (!deleteArmed) {
+        deleteArmed = true; delBtn.textContent = "Confirm delete";
+        deleteTimer = setTimeout(() => { deleteArmed = false; delBtn.textContent = "Delete"; }, 3000);
+        return;
+      }
+      if (deleteTimer) clearTimeout(deleteTimer);
+      state.expenses = state.expenses.filter((e) => e.id !== editing.id);
+      save(); closeModal(); render();
+    };
+    card.appendChild(el("div", { style: "margin-top:10px;" }, delBtn));
+  }
+  openModal(card);
+}
+
+function field(labelText, inputEl) {
+  return el("div", { className: "field" },
+    el("label", { text: labelText }), inputEl);
+}
+
+function canDeleteCategory(id) {
+  return !state.expenses.some((e) => e.categoryId === id);
+}
+
+function validateCategory({ name, budget }, existingId) {
+  const nm = (name || "").trim();
+  if (!nm) return { ok: false, field: "name", message: "Enter a name." };
+  const dup = state.categories.some((c) => c.id !== existingId && c.name.toLowerCase() === nm.toLowerCase());
+  if (dup) return { ok: false, field: "name", message: "That name is already used." };
+  const b = Number(budget);
+  if (budget === "" || !isFinite(b) || b < 0) return { ok: false, field: "budget", message: "Budget must be 0 or more." };
+  return { ok: true };
+}
+
+function openSettings() {
+  const msg = el("div", { className: "settings-msg" });
+
+  const card = el("div", {});
+  openSettingsInto(card, msg);
+  openModal(card);
+}
+
+function openSettingsInto(card, msg) {
+  card.textContent = "";
+  card.appendChild(el("h2", { text: "Categories" }));
+
+  state.categories.forEach((c) => {
+    const nameI = el("input", { type: "text", value: c.name });
+    const budI = el("input", { type: "number", step: "1", min: "0", value: String(c.budget) });
+    const commit = () => {
+      const res = validateCategory({ name: nameI.value, budget: budI.value }, c.id);
+      if (!res.ok) { msg.textContent = res.message; nameI.value = c.name; budI.value = String(c.budget); return; }
+      msg.textContent = "";
+      c.name = nameI.value.trim();
+      c.budget = Number(budI.value);
+      save(); render(); openSettingsInto(card, msg);
+    };
+    nameI.onchange = commit;
+    budI.onchange = commit;
+
+    let armed = false;
+    let armTimer = null;
+    const del = el("button", {}, "Delete");
+    del.onclick = () => {
+      if (!canDeleteCategory(c.id)) { msg.textContent = "Reassign or delete this category's expenses first."; return; }
+      if (!armed) {
+        armed = true; del.textContent = "Confirm";
+        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000);
+        return;
+      }
+      if (armTimer) clearTimeout(armTimer);
+      state.categories = state.categories.filter((x) => x.id !== c.id);
+      save(); render(); openSettingsInto(card, msg);
+    };
+
+    card.appendChild(el("div", { className: "cat-edit" }, nameI, budI, del));
+  });
+
+  const addName = el("input", { type: "text", placeholder: "New category" });
+  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget" });
+  const addBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
+  addBtn.onclick = () => {
+    const res = validateCategory({ name: addName.value, budget: addBud.value }, null);
+    if (!res.ok) { msg.textContent = res.message; return; }
+    msg.textContent = "";
+    state.categories.push({ id: uid(), name: addName.value.trim(), budget: Number(addBud.value) });
+    save(); render(); openSettingsInto(card, msg);
+  };
+  card.appendChild(el("div", { className: "settings-add" }, addName, addBud, addBtn));
+  card.appendChild(msg);
+
+  card.appendChild(el("div", { className: "modal-actions" },
+    el("button", { className: "btn", onClick: closeModal }, "Done")));
+}
+
+load();
+selectedMonth = monthKey(new Date());
+if (!storageAvailable) document.getElementById("storage-notice").hidden = false;
+render();
+</script>
+</body>
+</html>
