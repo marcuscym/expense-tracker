@@ -94,8 +94,11 @@
   .summary { background:var(--accent); color:var(--accent-ink); border-radius:20px; padding:20px;
              display:flex; align-items:center; gap:18px; margin-bottom:16px; }
   .summary .lbl { font-size:12px; opacity:.75; }
-  .summary .big { font-size:24px; font-weight:500; margin:2px 0 4px; }
-  .summary .sub { font-size:12px; opacity:.9; }
+  .summary .big { font-size:26px; font-weight:500; margin:2px 0 4px; }
+  .summary .big.neg { color:#F0997B; }
+  .summary .sub { font-size:12px; opacity:.9; line-height:1.45; }
+  .summary-plain { display:block; }
+  .summary-link { background:none; border:none; color:#CECBF6; font-size:12px; font-weight:500; padding:6px 0 0; }
   .ring-wrap { position:relative; width:92px; height:92px; flex:0 0 92px; }
   .ring-wrap .pct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .ring-wrap .pct b { font-size:19px; font-weight:500; }
@@ -175,6 +178,13 @@
   .settings-msg { color:var(--danger); font-size:12px; margin-top:4px; }
   .set-h { font-size:13px; font-weight:500; color:var(--muted); margin:20px 0 8px; }
   .set-h:first-child { margin-top:4px; }
+  .set-menu { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%;
+              background:var(--bg); border:1px solid var(--line); border-radius:12px;
+              padding:12px 14px; margin-bottom:8px; text-align:left; color:var(--text); min-height:56px; }
+  .set-menu b { display:block; font-size:15px; font-weight:500; }
+  .set-menu .smd { display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+  .set-menu .smc { font-size:16px; color:var(--muted); flex:0 0 auto; }
+  .set-back { background:none; border:none; color:var(--muted); font-size:13px; padding:2px 0 6px; }
   .fc { border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; }
   .fc h3 { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--muted); }
   .fc-row { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:14px; }
@@ -340,8 +350,8 @@ function setTab(t) {
 let expFilter = { q: "", categoryId: null };
 let pendingUndoTimer = null;
 let lastCategoryId = null;
-let fcCollapsed = false;
-try { fcCollapsed = localStorage.getItem("expense-tracker-fc-collapsed") === "1"; } catch (e) {}
+let fcCollapsed = true;
+try { const v = localStorage.getItem("expense-tracker-fc-collapsed"); if (v != null) fcCollapsed = v === "1"; } catch (e) {}
 
 function toast(msg, actionLabel, actionFn) {
   const host = document.getElementById("toasts");
@@ -596,7 +606,7 @@ function renderQuickBar() {
   const bar = el("div", { className: "chips quick-bar" });
   if (state.quick.length === 0) {
     bar.appendChild(el("button", { className: "chip",
-      onClick: () => { if (typeof openSettings === "function") openSettings(); } }, "+ Set up quick log"));
+      onClick: () => openSettings("quick") }, "+ Set up quick log"));
   } else {
     state.quick.forEach((q) => {
       const cat = categoryById(q.categoryId);
@@ -701,46 +711,66 @@ function renderHeader() {
       el("button", { className: "iconbtn", "aria-label": "Next month",
         onClick: () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); } }, "›"),
     ),
-    el("button", { className: "iconbtn", "aria-label": "Categories and settings",
-      onClick: () => { if (typeof openSettings === "function") openSettings(); } }, "⚙"),
+    el("button", { className: "iconbtn", "aria-label": "Settings",
+      onClick: () => openSettings("menu") }, "⚙"),
   );
 }
 
 function renderSummary() {
   const spent = monthSpentCents(selectedMonth);
-  const budget = totalBudgetCents();
-  const pct = budget > 0 ? spent / budget : (spent > 0 ? 1 : 0);
-  const tone = status(spent, budget);
-  const left = budget - spent;
+  const mName = fmtMonth(selectedMonth).split(" ")[0];
+
+  if (centsOf(state.income) <= 0) {
+    return el("div", { className: "summary summary-plain" },
+      el("div", { className: "grow" },
+        el("div", { className: "lbl", text: `Spent in ${mName}` }),
+        el("div", { className: "big", text: money(fromCents(spent)) }),
+        el("button", { className: "summary-link",
+          onClick: () => openSettings("money") }, "Set up income for a forecast →")));
+  }
+
+  const f = forecast(selectedMonth);
+  const denom = Math.max(1, f.available - f.goal);
+  const usedPct = clamp01(f.spent / denom);
+  const tone = f.spent > denom ? "over" : (f.spent >= denom * 0.8 ? "warn" : "normal");
+
+  const headlineCents = f.mp.pos === "current"
+    ? (f.goal > 0 ? f.spendableForGoal : f.remainingNow)
+    : f.projectedLeftover;
+  const headlineLabel = f.mp.pos === "current"
+    ? (f.goal > 0 ? "Left to spend" : "Money left")
+    : (f.mp.pos === "past" ? "Left over" : "Projected leftover");
+
+  let sub;
+  if (f.mp.pos === "current" && f.goal > 0 && f.perDayForGoal != null) {
+    sub = f.perDayForGoal >= 0
+      ? `≈ ${money(fromCents(f.perDayForGoal))}/day and you still save ${money(fromCents(f.goal))}`
+      : "over budget for the rest of the month";
+  } else if (f.mp.pos === "current" && f.safePerDay != null) {
+    sub = f.safePerDay >= 0
+      ? `≈ ${money(fromCents(f.safePerDay))}/day for ${f.mp.daysLeft} more day${f.mp.daysLeft === 1 ? "" : "s"}`
+      : "nothing left for the rest of the month";
+  } else {
+    sub = `${mName} · spent ${money(fromCents(f.spent))}`;
+  }
+
   const wrap = el("div", { className: "ring-wrap" });
-  wrap.appendChild(ringSvg(pct, tone));
+  wrap.appendChild(ringSvg(usedPct, tone));
   wrap.appendChild(el("div", { className: "pct" },
-    el("b", { text: `${Math.round(pct * 100)}%` }),
-    el("span", { text: "used" }),
-  ));
+    el("b", { text: `${Math.round(usedPct * 100)}%` }), el("span", { text: "used" })));
+
   return el("div", { className: "summary" },
     wrap,
-    el("div", {},
-      el("div", { className: "lbl", text: "Spent this month" }),
-      el("div", { className: "big", text: `${money(fromCents(spent))}` }),
-      el("div", { className: "sub", text: left >= 0
-        ? `${money(fromCents(left))} left of ${money(fromCents(budget))}`
-        : `${money(fromCents(-left))} over ${money(fromCents(budget))}` }),
-    ),
-  );
+    el("div", { className: "grow" },
+      el("div", { className: "lbl", text: headlineLabel }),
+      el("div", { className: "big" + (headlineCents < 0 ? " neg" : ""),
+        text: (headlineCents < 0 ? "− " : "") + money(fromCents(Math.abs(headlineCents))) }),
+      el("div", { className: "sub", text: sub })));
 }
 
 function renderForecast() {
   const box = el("div", {});
-
-  if (centsOf(state.income) <= 0) {
-    box.appendChild(el("div", { className: "sec-title", text: `Forecast · ${fmtMonth(selectedMonth).split(" ")[0]}` }));
-    box.appendChild(el("div", { className: "fc fc-cta" },
-      el("div", { className: "fc-note", text: "Add your monthly income and fixed commitments in settings to see a forecast." }),
-      el("button", { className: "btn primary", style: "width:100%;margin-top:10px;",
-        onClick: () => { if (typeof openSettings === "function") openSettings(); } }, "Set up forecast")));
-    return box;
-  }
+  if (centsOf(state.income) <= 0) return box;
 
   const f = forecast(selectedMonth);
 
@@ -750,20 +780,11 @@ function renderForecast() {
       try { localStorage.setItem("expense-tracker-fc-collapsed", fcCollapsed ? "1" : "0"); } catch (e) {}
       render();
     } },
-    el("span", { className: "t", text: `Forecast · ${fmtMonth(selectedMonth).split(" ")[0]}` }),
+    el("span", { className: "t", text: "Forecast details" }),
     el("span", { className: "chev" + (fcCollapsed ? "" : " open"), text: "›" }));
   box.appendChild(toggle);
 
-  if (fcCollapsed) {
-    const headline = f.mp.pos === "current"
-      ? { k: f.goal > 0 ? "Left to spend" : "Money left", c: f.goal > 0 ? f.spendableForGoal : f.remainingNow }
-      : { k: f.mp.pos === "past" ? "Left over" : "Projected leftover", c: f.projectedLeftover };
-    box.appendChild(el("div", { className: "fc-collapsed" },
-      el("span", { text: headline.k }),
-      el("span", { className: "v " + (headline.c >= 0 ? "good" : "bad"),
-        text: (headline.c < 0 ? "− " : "") + money(fromCents(Math.abs(headline.c))) })));
-    return box;
-  }
+  if (fcCollapsed) return box;
 
   const card = el("div", { className: "fc" });
   const row = (k, v, neg) => el("div", { className: "fc-row" },
@@ -869,7 +890,7 @@ function fmtDayShort(iso) {
 
 function renderCategories() {
   const box = el("div", {});
-  box.appendChild(el("div", { className: "sec-title", text: "Categories" }));
+  box.appendChild(el("div", { className: "sec-title", text: "Category budgets" }));
   if (state.categories.length === 0) {
     box.appendChild(el("div", { className: "empty", text: "Add a category to get started." }));
     return box;
@@ -1113,7 +1134,7 @@ function openNeedCategory() {
     el("p", { className: "empty", text: "You need at least one category before adding an expense." }),
     el("div", { className: "modal-actions" },
       el("button", { className: "btn", onClick: closeModal }, "Cancel"),
-      el("button", { className: "btn primary", onClick: () => { closeModal(); if (typeof openSettings === "function") openSettings(); } }, "Open settings"),
+      el("button", { className: "btn primary", onClick: () => { closeModal(); openSettings("categories"); } }, "Open settings"),
     ),
   ));
 }
@@ -1273,21 +1294,55 @@ function importBackup(file, onDone, onErr) {
   reader.readAsText(file);
 }
 
-function openSettings() {
-  const msg = el("div", { className: "settings-msg" });
+let settingsView = "menu";
 
+function openSettings(view) {
+  settingsView = view || "menu";
+  const msg = el("div", { className: "settings-msg" });
   const card = el("div", {});
   openSettingsInto(card, msg);
   openModal(card);
 }
 
+const SETTINGS_TITLES = {
+  categories: "Categories", bills: "Fixed bills", recurring: "Recurring",
+  quick: "Quick log", money: "Income & savings", backup: "Backup",
+};
+
 function openSettingsInto(card, msg) {
   card.textContent = "";
-  card.appendChild(el("h2", { text: "Settings" }));
   const refresh = () => openSettingsInto(card, msg);
+  const go = (v) => { settingsView = v; refresh(); };
+  const catOptions = (sel) => state.categories.map((c) => {
+    const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
+    if (c.id === sel) o.selected = true;
+    return o;
+  });
 
-  card.appendChild(el("div", { className: "set-h", text: "Categories" }));
+  if (settingsView === "menu") {
+    card.appendChild(el("h2", { text: "Settings" }));
+    const item = (key, desc) => el("button", { className: "set-menu", onClick: () => go(key) },
+      el("span", {}, el("b", { text: SETTINGS_TITLES[key] }), el("span", { className: "smd", text: desc })),
+      el("span", { className: "smc", text: "›" }));
+    card.appendChild(item("categories", `${state.categories.length} · budgets & emoji`));
+    card.appendChild(item("bills", "Rent, insurance — forecast only"));
+    card.appendChild(item("recurring", "Netflix, gym — one tap to log"));
+    card.appendChild(item("quick", "One-tap chips on Overview"));
+    card.appendChild(item("money", "Income & savings goal"));
+    card.appendChild(item("backup", "Download or restore your data"));
+    card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px;" },
+      el("button", { className: "btn", onClick: closeModal }, "Done")));
+    return;
+  }
 
+  card.appendChild(el("button", { className: "set-back", onClick: () => go("menu") }, "‹ Settings"));
+  card.appendChild(el("h2", { text: SETTINGS_TITLES[settingsView] }));
+  const done = () => card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px;" },
+    el("button", { className: "btn", onClick: () => go("menu") }, "Back"),
+    el("button", { className: "btn primary", onClick: closeModal }, "Done")));
+
+  // ============ CATEGORIES ============
+  if (settingsView === "categories") {
   state.categories.forEach((c) => {
     const emojiI = el("input", { type: "text", value: c.emoji || "", placeholder: "🙂",
       maxlength: "4", style: "flex:0 0 46px;width:46px;text-align:center;" });
@@ -1356,10 +1411,12 @@ function openSettingsInto(card, msg) {
     save(); render(); openSettingsInto(card, msg);
   };
   card.appendChild(el("div", { className: "settings-add" }, addEmoji, addName, addBud, addBtn));
+  card.appendChild(msg);
+  done();
+  }
 
-  // ---- Income & commitments ----
-  card.appendChild(el("div", { className: "set-h", text: "Income & commitments" }));
-
+  // ============ INCOME & SAVINGS ============
+  if (settingsView === "money") {
   const incomeI = el("input", { type: "number", step: "1", min: "0",
     value: state.income ? String(state.income) : "", placeholder: "Monthly income (RM)" });
   incomeI.onchange = () => {
@@ -1381,9 +1438,16 @@ function openSettingsInto(card, msg) {
   };
   card.appendChild(el("div", { className: "field" },
     el("label", { text: "Monthly savings goal (RM)" }), goalI));
+  card.appendChild(el("div", { className: "fc-note",
+    text: "Used for the forecast on the Overview tab. The savings goal reserves that amount before working out what's safe to spend." }));
+  card.appendChild(msg);
+  done();
+  }
 
-  card.appendChild(el("div", { className: "fc-note", style: "margin:6px 0 4px;font-weight:500;color:var(--text);",
-    text: "Fixed commitments (rent, insurance, subscriptions)" }));
+  // ============ FIXED BILLS (commitments) ============
+  if (settingsView === "bills") {
+  card.appendChild(el("div", { className: "fc-note",
+    text: "Rent, insurance, subscriptions. Subtracted in your forecast — NOT added to your expense list. Tick “Varies each month” for bills that change (electricity); you then set each month's amount on the Overview forecast." }));
 
   state.commitments.forEach((c) => {
     const nameI = el("input", { type: "text", value: c.name });
@@ -1430,17 +1494,14 @@ function openSettingsInto(card, msg) {
     save(); render(); refresh();
   };
   card.appendChild(el("div", { className: "settings-add" }, cName, cAmt, cAdd));
+  card.appendChild(msg);
+  done();
+  }
+
+  // ============ RECURRING ============
+  if (settingsView === "recurring") {
   card.appendChild(el("div", { className: "fc-note",
-    text: "Commitments are forecast-only (not logged as expenses). Tick “Varies each month” for bills like electricity — you then set each month's actual amount on the forecast card." }));
-
-  // ---- Recurring ----
-  card.appendChild(el("div", { className: "set-h", text: "Recurring expenses" }));
-
-  const catOptions = (sel) => state.categories.map((c) => {
-    const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
-    if (c.id === sel) o.selected = true;
-    return o;
-  });
+    text: "Regular expenses you DO want in your history — Netflix, gym, etc. Each month the Expenses tab shows a one-tap “Add” for any you haven't logged yet. Set the day it's usually due." }));
 
   state.recurring.forEach((r) => {
     const nameI = el("input", { type: "text", value: r.name });
@@ -1490,11 +1551,14 @@ function openSettingsInto(card, msg) {
   card.appendChild(el("div", { className: "rec-edit" },
     el("div", { className: "r" }, rName, rAmt),
     el("div", { className: "r" }, rCat, el("span", { className: "day-lbl", text: "day" }), rDay, rAdd)));
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Recurring expenses aren't logged automatically — the Expenses tab shows a one-tap “Add” for any not yet recorded that month." }));
+  card.appendChild(msg);
+  done();
+  }
 
-  // ---- Quick log ----
-  card.appendChild(el("div", { className: "set-h", text: "Quick log" }));
+  // ============ QUICK LOG ============
+  if (settingsView === "quick") {
+  card.appendChild(el("div", { className: "fc-note",
+    text: "One-tap chips at the top of Overview for your regulars (lunch, petrol). A tap logs it for today; long-press to adjust first. Use ↑ ↓ to reorder." }));
 
   state.quick.forEach((q, qi) => {
     const labI = el("input", { type: "text", value: q.label });
@@ -1550,14 +1614,15 @@ function openSettingsInto(card, msg) {
   card.appendChild(el("div", { className: "rec-edit" },
     el("div", { className: "r" }, qLab, qAmt),
     el("div", { className: "r" }, qCat, qAdd)));
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Quick-log chips appear on the Overview tab. One tap logs the expense for today; long-press a chip to adjust it first." }));
-
   card.appendChild(msg);
+  done();
+  }
 
-  // ---- Backup ----
-  card.appendChild(el("div", { className: "set-h", text: "Backup" }));
-  const dl = el("button", { className: "btn", style: "width:100%;margin-bottom:8px;",
+  // ============ BACKUP ============
+  if (settingsView === "backup") {
+  card.appendChild(el("div", { className: "fc-note",
+    text: "Your data lives only in this browser. Download a backup now and again, and after switching phone or browser use Restore to bring it back." }));
+  const dl = el("button", { className: "btn", style: "width:100%;margin:6px 0 12px;",
     onClick: exportBackup }, "Download backup");
   card.appendChild(dl);
 
@@ -1575,15 +1640,15 @@ function openSettingsInto(card, msg) {
     restoreArea.appendChild(el("div", { className: "modal-actions", style: "margin-top:8px;" },
       el("button", { className: "btn", onClick: () => { fileInput.value = ""; refresh(); } }, "Cancel"),
       el("button", { className: "btn danger", onClick: () => {
-        importBackup(file, () => { closeModal(); openSettings(); }, (err) => { errLine.textContent = err; });
+        importBackup(file, () => { closeModal(); openSettings("backup"); }, (err) => { errLine.textContent = err; });
       } }, "Replace all data")));
   };
   card.appendChild(el("div", { className: "field" },
     el("label", { text: "Restore from a backup file" }), fileInput));
   card.appendChild(restoreArea);
-
-  card.appendChild(el("div", { className: "modal-actions", style: "margin-top:14px;" },
-    el("button", { className: "btn", onClick: closeModal }, "Done")));
+  card.appendChild(msg);
+  done();
+  }
 }
 
 load();
