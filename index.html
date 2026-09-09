@@ -63,6 +63,14 @@
   .chip.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
   .day-head { display:flex; justify-content:space-between; align-items:baseline;
               font-size:12px; color:var(--muted); font-weight:500; margin:16px 2px 4px; }
+  .quick-add { display:flex; gap:6px; margin-top:8px; }
+  .quick-add .chip { flex:1; text-align:center; }
+  .rec-prompt { border:1px dashed var(--border-strong,var(--line)); border-radius:14px; padding:12px 14px; margin-bottom:14px; }
+  .rec-prompt .rp-h { font-size:12px; color:var(--muted); font-weight:500; margin-bottom:8px; }
+  .rec-prompt .rp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; }
+  .rec-prompt .rp-row .rp-add { border:1px solid var(--accent); color:var(--accent); background:none;
+                                border-radius:8px; padding:5px 12px; font-size:13px; font-weight:600; min-height:36px; }
+  @media (prefers-color-scheme: dark){ .rec-prompt .rp-row .rp-add { border-color:#CECBF6; color:#CECBF6; } }
 
   .swipe-wrap { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
   .swipe-wrap:last-child { border-bottom:none; }
@@ -91,7 +99,8 @@
   .sec-title { font-size:13px; font-weight:500; color:var(--muted); margin:6px 2px 8px; }
   .empty { color:var(--muted); font-size:14px; padding:8px 2px 16px; }
   .cat-row { display:flex; align-items:center; gap:12px; padding:10px 4px; }
-  .tile { width:34px; height:34px; min-width:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+  .tile { width:34px; height:34px; min-width:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .emoji-dot { width:20px; text-align:center; flex:0 0 20px; font-size:15px; }
   .dot { width:8px; height:8px; border-radius:99px; flex:0 0 8px; }
   .grow { flex:1; min-width:0; }
   .row-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
@@ -139,6 +148,15 @@
                     background:var(--bg); color:var(--text); min-height:44px; }
   .cat-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
                      background:none; color:var(--danger); padding:0 10px; white-space:nowrap; }
+  .rec-edit { border-bottom:1px solid var(--line); padding:10px 0; }
+  .rec-edit .r { display:flex; gap:8px; align-items:center; }
+  .rec-edit .r + .r { margin-top:8px; }
+  .rec-edit input, .rec-edit select { font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
+                    background:var(--bg); color:var(--text); min-height:44px; min-width:0; flex:1; }
+  .rec-edit .day-lbl { font-size:12px; color:var(--muted); flex:0 0 auto; }
+  .rec-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
+                     background:none; color:var(--danger); padding:0 10px; white-space:nowrap; flex:0 0 auto; }
+  .rec-edit .btn.primary { border-color:transparent; color:var(--accent-ink); }
   .settings-add { display:flex; gap:8px; margin-top:14px; }
   .settings-add input { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
                         border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
@@ -210,14 +228,15 @@ function DEFAULT_STATE() {
   return {
     version: 1,
     categories: [
-      { id: uid(), name: "Food", budget: 700 },
-      { id: uid(), name: "Transport", budget: 300 },
-      { id: uid(), name: "Housing", budget: 1600 },
+      { id: uid(), name: "Food", budget: 700, emoji: "🍔" },
+      { id: uid(), name: "Transport", budget: 300, emoji: "🚗" },
+      { id: uid(), name: "Housing", budget: 1600, emoji: "🏠" },
     ],
     expenses: [],
     income: 0,
     commitments: [],
     savingsGoal: 0,
+    recurring: [],
   };
 }
 
@@ -249,10 +268,16 @@ function normalize(obj) {
   const okCat = (c) => c && typeof c.id === "string" && typeof c.name === "string";
   const okExp = (e) => e && typeof e.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "");
   const okCom = (c) => c && typeof c.id === "string" && typeof c.name === "string" && Number.isFinite(Number(c.amount));
-  if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat);
+  const okRec = (r) => r && typeof r.id === "string" && typeof r.name === "string" && Number.isFinite(Number(r.amount));
+  if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat)
+    .map((c) => ({ id: c.id, name: c.name, budget: c.budget, emoji: typeof c.emoji === "string" ? c.emoji.slice(0, 4) : "" }));
   if (obj && Array.isArray(obj.expenses))   s.expenses   = obj.expenses.filter(okExp);
   if (obj && Array.isArray(obj.commitments)) s.commitments = obj.commitments.filter(okCom)
     .map((c) => ({ id: c.id, name: c.name, amount: Number(c.amount) }));
+  if (obj && Array.isArray(obj.recurring)) s.recurring = obj.recurring.filter(okRec)
+    .map((r) => ({ id: r.id, name: r.name, amount: Number(r.amount),
+      categoryId: typeof r.categoryId === "string" ? r.categoryId : "",
+      day: Math.min(28, Math.max(1, parseInt(r.day, 10) || 1)) }));
   if (obj && Number.isFinite(Number(obj.income)) && Number(obj.income) >= 0) s.income = Number(obj.income);
   if (obj && Number.isFinite(Number(obj.savingsGoal)) && Number(obj.savingsGoal) >= 0) s.savingsGoal = Number(obj.savingsGoal);
   s.version = 1;
@@ -416,6 +441,29 @@ function forecast(key) {
   const savingsRate = income > 0 ? projectedLeftover / income : null;
   return { income, commit, spent, available, goal, mp, projectedEveryday, projectedFromPace,
     remainingNow, projectedLeftover, spendableForGoal, perDayForGoal, safePerDay, savingsRate };
+}
+
+function recurringDate(rec, key) {
+  return `${key}-${pad2(Math.min(rec.day || 1, daysInMonthOf(key)))}`;
+}
+function unloggedRecurring(key) {
+  return state.recurring.filter((r) =>
+    !state.expenses.some((e) => e.recurringId === r.id && (e.date || "").slice(0, 7) === key));
+}
+function addRecurringToMonth(rec, key) {
+  state.expenses.push({ id: uid(), amount: rec.amount,
+    categoryId: categoryById(rec.categoryId) ? rec.categoryId : (state.categories[0] ? state.categories[0].id : ""),
+    date: recurringDate(rec, key), description: rec.name, recurringId: rec.id });
+  save(); render(); toast("Added " + rec.name);
+}
+function validateRecurring({ name, amount }, existingId) {
+  const nm = (name || "").trim();
+  if (!nm) return { ok: false, message: "Enter a name." };
+  if (state.recurring.some((r) => r.id !== existingId && r.name.toLowerCase() === nm.toLowerCase()))
+    return { ok: false, message: "That name is already used." };
+  const a = Number(amount);
+  if (amount === "" || !isFinite(a) || a <= 0) return { ok: false, message: "Amount must be greater than 0." };
+  return { ok: true };
 }
 
 function ringSvg(percent, tone) {
@@ -721,9 +769,13 @@ function renderCategories() {
     const width = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
     const tile = el("div", { className: "tile" });
     tile.style.background = catColor(i) + "22";
-    const catDot = el("div", { className: "dot" });
-    catDot.style.background = catColor(i);
-    tile.appendChild(catDot);
+    if (c.emoji) {
+      tile.appendChild(el("span", { text: c.emoji }));
+    } else {
+      const catDot = el("div", { className: "dot" });
+      catDot.style.background = catColor(i);
+      tile.appendChild(catDot);
+    }
     const barFill = el("i", { className: tone });
     barFill.style.width = width + "%";
     box.appendChild(el("div", { className: "cat-row" },
@@ -744,8 +796,13 @@ function renderCategories() {
 function expenseRowInner(e, showDayInMeta) {
   const cat = categoryById(e.categoryId);
   const idx = cat ? state.categories.indexOf(cat) : -1;
-  const dot = el("div", { className: "dot" });
-  dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
+  let dot;
+  if (cat && cat.emoji) {
+    dot = el("span", { className: "emoji-dot", text: cat.emoji });
+  } else {
+    dot = el("div", { className: "dot" });
+    dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
+  }
   const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
   const meta = (cat ? cat.name : "Uncategorized") + (showDayInMeta ? ` · ${fmtDayShort(e.date)}` : "");
   return el("button", { className: "exp-row", "data-id": e.id,
@@ -866,6 +923,18 @@ function renderExpensesTab() {
   state.categories.forEach((c) => chipRow.appendChild(mkChip(c.name, c.id)));
   box.appendChild(chipRow);
 
+  const due = unloggedRecurring(selectedMonth);
+  if (due.length && !expFilter.q && !expFilter.categoryId) {
+    const rp = el("div", { className: "rec-prompt" });
+    rp.appendChild(el("div", { className: "rp-h", text: `Recurring not yet added for ${fmtMonth(selectedMonth).split(" ")[0]}` }));
+    due.forEach((r) => {
+      rp.appendChild(el("div", { className: "rp-row" },
+        el("span", { text: `${r.name} · ${money(fromCents(centsOf(r.amount)))}` }),
+        el("button", { className: "rp-add", onClick: () => addRecurringToMonth(r, selectedMonth) }, "Add")));
+    });
+    box.appendChild(rp);
+  }
+
   const listHost = el("div", {});
   box.appendChild(listHost);
 
@@ -959,9 +1028,13 @@ function openExpenseForm(id) {
   };
 
   const amountInput = el("input", { type: "number", step: "0.01", inputmode: "decimal", value: vals.amount });
+  const quick = el("div", { className: "quick-add" });
+  [10, 50, 100].forEach((q) => quick.appendChild(el("button", { className: "chip",
+    onClick: () => { amountInput.value = (Math.round((Number(amountInput.value) || 0) * 100 + q * 100) / 100).toString(); amountInput.focus({ preventScroll: true }); } }, "+" + q)));
+  quick.appendChild(el("button", { className: "chip", onClick: () => { amountInput.value = ""; amountInput.focus({ preventScroll: true }); } }, "Clear"));
   const catSelect = el("select", {},
     ...state.categories.map((c) => {
-      const o = el("option", { value: c.id, text: c.name });
+      const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
       if (c.id === vals.categoryId) o.selected = true;
       return o;
     }));
@@ -999,9 +1072,12 @@ function openExpenseForm(id) {
     el("button", { className: "btn primary", onClick: submit }, editing ? "Save" : "Add"),
   );
 
+  const amountField = field("Amount (RM)", amountInput);
+  amountField.appendChild(quick);
+
   const card = el("div", {},
     el("h2", { text: editing ? "Edit expense" : "New expense" }),
-    field("Amount (RM)", amountInput),
+    amountField,
     field("Category", catSelect),
     field("Date", dateInput),
     field("Description (optional)", descInput),
@@ -1010,9 +1086,16 @@ function openExpenseForm(id) {
   );
 
   if (editing) {
+    const dupBtn = el("button", { className: "btn" }, "Duplicate");
+    dupBtn.onclick = () => {
+      state.expenses.push({ id: uid(), amount: editing.amount, categoryId: editing.categoryId,
+        date: selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`,
+        description: editing.description || "" });
+      save(); closeModal(); render(); toast("Duplicated");
+    };
     const delBtn = el("button", { className: "btn danger" }, "Delete");
     delBtn.onclick = () => { closeModal(); deleteExpenseWithUndo(editing.id); };
-    card.appendChild(el("div", { style: "margin-top:10px;" }, delBtn));
+    card.appendChild(el("div", { className: "modal-actions", style: "margin-top:10px;" }, dupBtn, delBtn));
   }
   openModal(card);
 }
@@ -1092,6 +1175,8 @@ function openSettingsInto(card, msg) {
   card.appendChild(el("div", { className: "set-h", text: "Categories" }));
 
   state.categories.forEach((c) => {
+    const emojiI = el("input", { type: "text", value: c.emoji || "", placeholder: "🙂",
+      maxlength: "4", style: "flex:0 0 46px;width:46px;text-align:center;" });
     const nameI = el("input", { type: "text", value: c.name });
     const budI = el("input", { type: "number", step: "1", min: "0", value: String(c.budget) });
     const commit = () => {
@@ -1100,10 +1185,12 @@ function openSettingsInto(card, msg) {
       msg.textContent = "";
       c.name = nameI.value.trim();
       c.budget = Number(budI.value);
+      c.emoji = emojiI.value.trim().slice(0, 4);
       save(); render(); openSettingsInto(card, msg);
     };
     nameI.onchange = commit;
     budI.onchange = commit;
+    emojiI.onchange = commit;
 
     let armed = false;
     let armTimer = null;
@@ -1120,20 +1207,21 @@ function openSettingsInto(card, msg) {
       save(); render(); openSettingsInto(card, msg);
     };
 
-    card.appendChild(el("div", { className: "cat-edit" }, nameI, budI, del));
+    card.appendChild(el("div", { className: "cat-edit" }, emojiI, nameI, budI, del));
   });
 
+  const addEmoji = el("input", { type: "text", placeholder: "🙂", maxlength: "4", style: "flex:0 0 46px;width:46px;text-align:center;" });
   const addName = el("input", { type: "text", placeholder: "New category" });
-  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget (RM)" });
+  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget" });
   const addBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
   addBtn.onclick = () => {
     const res = validateCategory({ name: addName.value, budget: addBud.value }, null);
     if (!res.ok) { msg.textContent = res.message; return; }
     msg.textContent = "";
-    state.categories.push({ id: uid(), name: addName.value.trim(), budget: Number(addBud.value) });
+    state.categories.push({ id: uid(), name: addName.value.trim(), budget: Number(addBud.value), emoji: addEmoji.value.trim().slice(0, 4) });
     save(); render(); openSettingsInto(card, msg);
   };
-  card.appendChild(el("div", { className: "settings-add" }, addName, addBud, addBtn));
+  card.appendChild(el("div", { className: "settings-add" }, addEmoji, addName, addBud, addBtn));
 
   // ---- Income & commitments ----
   card.appendChild(el("div", { className: "set-h", text: "Forecast setup" }));
@@ -1196,6 +1284,64 @@ function openSettingsInto(card, msg) {
   card.appendChild(el("div", { className: "settings-add" }, cName, cAmt, cAdd));
   card.appendChild(el("div", { className: "fc-note",
     text: "Commitments are used only for the forecast. Keep logging the actual payments as expenses if you want them in your categories." }));
+
+  // ---- Recurring ----
+  card.appendChild(el("div", { className: "set-h", text: "Recurring expenses" }));
+
+  const catOptions = (sel) => state.categories.map((c) => {
+    const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
+    if (c.id === sel) o.selected = true;
+    return o;
+  });
+
+  state.recurring.forEach((r) => {
+    const nameI = el("input", { type: "text", value: r.name });
+    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(r.amount), style: "flex:0 0 90px;width:90px;" });
+    const catI = el("select", {}, ...catOptions(r.categoryId));
+    const dayI = el("input", { type: "number", min: "1", max: "28", value: String(r.day || 1), style: "flex:0 0 64px;width:64px;" });
+    const commit = () => {
+      const res = validateRecurring({ name: nameI.value, amount: amtI.value }, r.id);
+      if (!res.ok) { msg.textContent = res.message; nameI.value = r.name; amtI.value = String(r.amount); return; }
+      msg.textContent = "";
+      r.name = nameI.value.trim(); r.amount = Number(amtI.value);
+      r.categoryId = catI.value; r.day = Math.min(28, Math.max(1, parseInt(dayI.value, 10) || 1));
+      dayI.value = String(r.day);
+      save(); render(); refresh();
+    };
+    [nameI, amtI, catI, dayI].forEach((x) => x.onchange = commit);
+    let armed = false, armTimer = null;
+    const del = el("button", {}, "Delete");
+    del.onclick = () => {
+      if (!armed) { armed = true; del.textContent = "Confirm";
+        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
+      if (armTimer) clearTimeout(armTimer);
+      state.recurring = state.recurring.filter((x) => x.id !== r.id);
+      save(); render(); refresh();
+    };
+    card.appendChild(el("div", { className: "rec-edit" },
+      el("div", { className: "r" }, nameI, amtI),
+      el("div", { className: "r" }, catI, el("span", { className: "day-lbl", text: "day" }), dayI, del)));
+  });
+
+  const rName = el("input", { type: "text", placeholder: "e.g. Netflix, Gym" });
+  const rAmt = el("input", { type: "number", step: "1", min: "0", placeholder: "Amount" });
+  const rCat = el("select", {}, ...catOptions(state.categories[0] && state.categories[0].id));
+  const rDay = el("input", { type: "number", min: "1", max: "28", value: "1", style: "flex:0 0 64px;width:64px;" });
+  const rAdd = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
+  rAdd.onclick = () => {
+    const res = validateRecurring({ name: rName.value, amount: rAmt.value }, null);
+    if (!res.ok) { msg.textContent = res.message; return; }
+    if (state.categories.length === 0) { msg.textContent = "Add a category first."; return; }
+    msg.textContent = "";
+    state.recurring.push({ id: uid(), name: rName.value.trim(), amount: Number(rAmt.value),
+      categoryId: rCat.value, day: Math.min(28, Math.max(1, parseInt(rDay.value, 10) || 1)) });
+    save(); render(); refresh();
+  };
+  card.appendChild(el("div", { className: "rec-edit" },
+    el("div", { className: "r" }, rName, rAmt),
+    el("div", { className: "r" }, rCat, el("span", { className: "day-lbl", text: "day" }), rDay, rAdd)));
+  card.appendChild(el("div", { className: "fc-note",
+    text: "Recurring expenses aren't logged automatically — the Expenses tab shows a one-tap “Add” for any not yet recorded that month." }));
 
   card.appendChild(msg);
 
