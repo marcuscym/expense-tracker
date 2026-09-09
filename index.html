@@ -70,9 +70,10 @@
   .exp-row .amt { font-size:14px; font-weight:500; white-space:nowrap; }
   [hidden] { display:none !important; }
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex;
-                   align-items:flex-end; justify-content:center; z-index:10; }
+                   align-items:flex-end; justify-content:center; z-index:10; overflow-y:auto; }
   .modal-card { background:var(--card); color:var(--text); width:100%; max-width:420px;
-                border-radius:18px 18px 0 0; padding:18px 16px 22px; }
+                border-radius:18px 18px 0 0; padding:18px 16px 22px;
+                max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   @media (min-width:480px){ .modal-overlay{ align-items:center; } .modal-card{ border-radius:18px; } }
   .modal-card h2 { font-size:16px; font-weight:500; margin:0 0 12px; }
   .field { margin-bottom:12px; }
@@ -560,12 +561,15 @@ function openModal(node) {
   if (h2) { if (!h2.id) h2.id = "modal-title"; card.setAttribute("aria-labelledby", h2.id); }
   else card.removeAttribute("aria-labelledby");
   modal().hidden = false;
+  modal().scrollTop = 0;
+  card.scrollTop = 0;
+  document.body.style.overflow = "hidden";
   modal().onclick = (ev) => { if (ev.target === modal()) closeModal(); };
   const focusTarget = card.querySelector("input, select, textarea, button") || card;
   if (!focusTarget.hasAttribute("tabindex") && focusTarget === card) focusTarget.tabIndex = -1;
-  focusTarget.focus();
+  focusTarget.focus({ preventScroll: true });
 }
-function closeModal() { modal().hidden = true; modalCard().textContent = ""; }
+function closeModal() { modal().hidden = true; modalCard().textContent = ""; document.body.style.overflow = ""; }
 
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && !modal().hidden) closeModal();
