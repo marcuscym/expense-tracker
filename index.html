@@ -1566,8 +1566,27 @@ if (!storageAvailable) document.getElementById("storage-notice").hidden = false;
 render();
 
 if ("serviceWorker" in navigator) {
+  let didReload = false;
+  const hadController = !!navigator.serviceWorker.controller;
+  const safeReload = () => {
+    if (didReload) return;
+    // don't yank the page out from under an open form
+    if (modal() && !modal().hidden) return;
+    didReload = true;
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController) safeReload(); });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      reg.update();
+      setInterval(() => reg.update(), 60 * 60 * 1000);
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (nw) nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) safeReload();
+        });
+      });
+    }).catch(() => {});
   });
 }
 </script>

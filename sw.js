@@ -1,6 +1,6 @@
-/* Simple offline cache for the Expenses app.
-   Bump CACHE when any cached file changes so old copies are dropped. */
-const CACHE = "expenses-v16";
+/* Offline cache for the Expenses app.
+   Bump CACHE on every change so the old copy is dropped. */
+const CACHE = "expenses-v17";
 const ASSETS = [
   "./",
   "./index.html",
@@ -12,7 +12,13 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      // {cache:"reload"} forces each request past the browser's HTTP cache,
+      // so a fresh install always pulls the newest files.
+      .then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -23,13 +29,13 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-/* Network-first for navigations/same-origin GETs, fall back to cache when offline.
-   Successful responses refresh the cache so the app updates when online. */
+/* Network-first for same-origin GETs, cache fallback when offline.
+   The network request bypasses the HTTP cache so we never re-cache a stale file. */
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(req)
+    fetch(new Request(req.url, { cache: "no-cache" }))
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
