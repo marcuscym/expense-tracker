@@ -28,8 +28,50 @@
   * { box-sizing: border-box; }
   body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
          background: var(--bg); color: var(--text); }
-  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px 40px; }
+  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px calc(96px + env(safe-area-inset-bottom)); }
   button { font: inherit; cursor: pointer; }
+
+  .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:9;
+            display:flex; justify-content:center; gap:4px;
+            background:var(--card); border-top:1px solid var(--line);
+            padding:6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  .tabbar button { flex:1; max-width:140px; background:none; border:none; color:var(--muted);
+                   font-size:11px; font-weight:500; display:flex; flex-direction:column; align-items:center;
+                   gap:2px; padding:6px 0; border-radius:10px; }
+  .tabbar button .ic { font-size:19px; line-height:1; }
+  .tabbar button.active { color:var(--accent); }
+  @media (prefers-color-scheme: dark) { .tabbar button.active { color:#CECBF6; } }
+  .fab { position:fixed; right:calc(50% - 210px + 16px); bottom:calc(74px + env(safe-area-inset-bottom));
+         width:52px; height:52px; border-radius:50%; border:none; z-index:9;
+         background:var(--accent); color:var(--accent-ink); font-size:26px; line-height:52px;
+         box-shadow:0 4px 14px rgba(0,0,0,0.25); }
+  @media (max-width:452px){ .fab { right:16px; } }
+  #toasts { position:fixed; left:0; right:0; bottom:calc(80px + env(safe-area-inset-bottom));
+            z-index:11; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
+  .toast { pointer-events:auto; background:var(--text); color:var(--bg); font-size:13px; font-weight:500;
+           border-radius:999px; padding:10px 16px; display:flex; align-items:center; gap:12px;
+           max-width:calc(100vw - 32px); box-shadow:0 4px 14px rgba(0,0,0,0.25); }
+  .toast button { background:none; border:none; color:#9db8ff; font-weight:600; font-size:13px; padding:0; }
+
+  .search { width:100%; font:inherit; padding:10px 12px; border-radius:10px; margin-bottom:10px;
+            border:1px solid var(--line); background:var(--card); color:var(--text); min-height:42px; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px;
+           -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:0 0 auto; font-size:12px; font-weight:500; padding:7px 12px; border-radius:999px;
+          border:1px solid var(--line); background:var(--card); color:var(--muted); white-space:nowrap; }
+  .chip.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  .day-head { display:flex; justify-content:space-between; align-items:baseline;
+              font-size:12px; color:var(--muted); font-weight:500; margin:16px 2px 4px; }
+
+  .swipe-wrap { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
+  .swipe-wrap:last-child { border-bottom:none; }
+  .swipe-actions { position:absolute; top:0; right:0; bottom:0; display:flex; }
+  .swipe-actions button { border:none; color:#fff; font-size:13px; font-weight:600; width:70px; }
+  .swipe-actions .swipe-edit { background:#378ADD; }
+  .swipe-actions .swipe-del { background:var(--over); }
+  .exp-row.swipe-inner { position:relative; background:var(--bg); touch-action:pan-y;
+                         will-change:transform; padding-left:6px; padding-right:6px; }
   .notice { background: var(--warn); color: #412402; border-radius: var(--radius);
             padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
   .hdr { display:flex; align-items:center; justify-content:space-between; padding:6px 2px 12px; }
@@ -123,9 +165,11 @@
 <div id="app">
   <div id="storage-notice" class="notice" hidden>Data won't be saved in this browser session.</div>
   <div id="content"></div>
-  <div id="modal" class="modal-overlay" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true"></div>
-  </div>
+</div>
+<div id="chrome"></div>
+<div id="toasts"></div>
+<div id="modal" class="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true"></div>
 </div>
 <script>
 "use strict";
@@ -200,6 +244,45 @@ function save() {
 }
 
 let selectedMonth;
+
+const TAB_KEY = "expense-tracker-tab";
+let activeTab = "overview";
+try { const t = localStorage.getItem(TAB_KEY); if (t === "overview" || t === "expenses" || t === "trends") activeTab = t; } catch (e) {}
+function setTab(t) {
+  activeTab = t;
+  try { localStorage.setItem(TAB_KEY, t); } catch (e) {}
+  expFilter = { q: "", categoryId: null };
+  render();
+}
+
+let expFilter = { q: "", categoryId: null };
+let pendingUndoTimer = null;
+let lastCategoryId = null;
+
+function toast(msg, actionLabel, actionFn) {
+  const host = document.getElementById("toasts");
+  host.textContent = "";
+  const t = el("div", { className: "toast" }, el("span", { text: msg }));
+  if (actionLabel) {
+    t.appendChild(el("button", { onClick: () => { host.textContent = ""; if (pendingUndoTimer) clearTimeout(pendingUndoTimer); actionFn(); } }, actionLabel));
+  }
+  host.appendChild(t);
+  if (pendingUndoTimer) clearTimeout(pendingUndoTimer);
+  pendingUndoTimer = setTimeout(() => { if (host.firstChild === t) host.textContent = ""; }, actionLabel ? 6000 : 2200);
+}
+
+function deleteExpenseWithUndo(id) {
+  const idx = state.expenses.findIndex((e) => e.id === id);
+  if (idx < 0) return;
+  const removed = state.expenses[idx];
+  state.expenses.splice(idx, 1);
+  save(); render();
+  toast("Expense deleted", "Undo", () => {
+    const at = Math.min(idx, state.expenses.length);
+    state.expenses.splice(at, 0, removed);
+    save(); render();
+  });
+}
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const monthKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
@@ -351,15 +434,38 @@ function render() {
   root.textContent = "";
   try {
     root.appendChild(renderHeader());
-    root.appendChild(renderSummary());
-    root.appendChild(renderForecast());
-    root.appendChild(renderCategories());
-    root.appendChild(renderRecent());
-    root.appendChild(renderAddButton());
+    if (activeTab === "expenses") root.appendChild(renderExpensesTab());
+    else if (activeTab === "trends" && typeof renderTrendsTab === "function") root.appendChild(renderTrendsTab());
+    else root.appendChild(renderOverviewTab());
   } catch (err) {
     console.error(err);
     root.appendChild(el("div", { className: "notice", text: "Something went wrong rendering. Reload the page." }));
   }
+  renderChrome();
+}
+
+function renderChrome() {
+  const chrome = document.getElementById("chrome");
+  chrome.textContent = "";
+  const tab = (id, icon, label) => el("button", {
+    className: activeTab === id ? "active" : "", "aria-label": label,
+    onClick: () => setTab(id) },
+    el("span", { className: "ic", text: icon }), el("span", { text: label }));
+  chrome.appendChild(el("div", { className: "tabbar" },
+    tab("overview", "◎", "Overview"),
+    tab("expenses", "≣", "Expenses"),
+  ));
+  chrome.appendChild(el("button", { className: "fab", "aria-label": "Add expense",
+    onClick: () => { if (state.categories.length === 0) return openNeedCategory(); openExpenseForm(null); } }, "+"));
+}
+
+function renderOverviewTab() {
+  const box = el("div", {});
+  box.appendChild(renderSummary());
+  box.appendChild(renderForecast());
+  box.appendChild(renderCategories());
+  box.appendChild(renderRecent());
+  return box;
 }
 function renderHeader() {
   return el("div", { className: "hdr" },
@@ -521,32 +627,162 @@ function renderCategories() {
   return box;
 }
 
+function expenseRowInner(e, showDayInMeta) {
+  const cat = categoryById(e.categoryId);
+  const idx = cat ? state.categories.indexOf(cat) : -1;
+  const dot = el("div", { className: "dot" });
+  dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
+  const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
+  const meta = (cat ? cat.name : "Uncategorized") + (showDayInMeta ? ` · ${fmtDayShort(e.date)}` : "");
+  return el("button", { className: "exp-row", "data-id": e.id,
+    onClick: () => openEdit(e.id) },
+    el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px;" },
+      dot,
+      el("div", {},
+        el("div", { className: "desc", text: label }),
+        el("div", { className: "meta", text: meta }),
+      ),
+    ),
+    el("div", { className: "amt", text: `${money(fromCents(centsOf(e.amount)))}` }),
+  );
+}
+
 function renderRecent() {
   const box = el("div", {});
-  box.appendChild(el("div", { className: "sec-title", text: "Recent" }));
   const rows = expensesForMonth(selectedMonth);
+  const head = el("div", { className: "row-top", style: "margin:6px 2px 4px;" },
+    el("span", { className: "sec-title", style: "margin:0;", text: "Recent" }));
+  if (rows.length > 5) head.appendChild(el("button", { className: "chip", style: "border:none;background:none;color:var(--accent);padding:4px 0;",
+    onClick: () => setTab("expenses") }, "See all"));
+  box.appendChild(head);
   if (rows.length === 0) {
     box.appendChild(el("div", { className: "empty", text: `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
     return box;
   }
-  rows.forEach((e) => {
-    const cat = categoryById(e.categoryId);
-    const idx = cat ? state.categories.indexOf(cat) : -1;
-    const dot = el("div", { className: "dot" });
-    dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
-    const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
-    box.appendChild(el("button", { className: "exp-row", "data-id": e.id,
-      onClick: () => { if (typeof openEdit === "function") openEdit(e.id); } },
-      el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px;" },
-        dot,
-        el("div", {},
-          el("div", { className: "desc", text: label }),
-          el("div", { className: "meta", text: `${cat ? cat.name : "Uncategorized"} · ${fmtDayShort(e.date)}` }),
-        ),
-      ),
-      el("div", { className: "amt", text: `${money(fromCents(centsOf(e.amount)))}` }),
-    ));
+  rows.slice(0, 5).forEach((e) => box.appendChild(expenseRowInner(e, true)));
+  return box;
+}
+
+function dayLabel(iso) {
+  if (iso === todayISO()) return "Today";
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  if (iso === `${y.getFullYear()}-${pad2(y.getMonth() + 1)}-${pad2(y.getDate())}`) return "Yesterday";
+  const [yr, m, d] = iso.split("-").map(Number);
+  return new Date(yr, m - 1, d).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function closeOtherSwipes(except) {
+  document.querySelectorAll('.swipe-wrap[data-open="1"]').forEach((w) => {
+    if (w === except) return;
+    w.dataset.open = "0";
+    const inner = w.querySelector(".swipe-inner");
+    if (inner) { inner.style.transition = "transform .18s ease"; inner.style.transform = "translateX(0)"; }
   });
+}
+
+function swipeRow(inner, onEdit, onDelete) {
+  const OPEN = -140;
+  const wrap = el("div", { className: "swipe-wrap" });
+  wrap.dataset.open = "0";
+  const actions = el("div", { className: "swipe-actions" },
+    el("button", { className: "swipe-edit", onClick: (ev) => { ev.stopPropagation(); onEdit(); } }, "Edit"),
+    el("button", { className: "swipe-del", onClick: (ev) => { ev.stopPropagation(); onDelete(); } }, "Delete"));
+  inner.classList.add("swipe-inner");
+  wrap.appendChild(actions);
+  wrap.appendChild(inner);
+
+  let startX = 0, startY = 0, dx = 0, dragging = false, decided = null, moved = false;
+  const setX = (x) => { inner.style.transform = `translateX(${x}px)`; };
+  inner.addEventListener("touchstart", (e) => {
+    const t = e.touches[0]; startX = t.clientX; startY = t.clientY;
+    dragging = true; decided = null; moved = false;
+    inner.style.transition = "none";
+  }, { passive: true });
+  inner.addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    const mx = t.clientX - startX, my = t.clientY - startY;
+    if (decided === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) decided = Math.abs(mx) > Math.abs(my) ? "h" : "v";
+    if (decided !== "h") return;
+    e.preventDefault();
+    moved = true;
+    const base = wrap.dataset.open === "1" ? OPEN : 0;
+    dx = Math.max(OPEN, Math.min(0, base + mx));
+    setX(dx);
+  }, { passive: false });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    inner.style.transition = "transform .18s ease";
+    if (decided === "h") {
+      const open = dx < OPEN / 2;
+      setX(open ? OPEN : 0);
+      wrap.dataset.open = open ? "1" : "0";
+      if (open) closeOtherSwipes(wrap);
+    }
+  };
+  inner.addEventListener("touchend", end);
+  inner.addEventListener("touchcancel", end);
+  inner.addEventListener("click", (e) => {
+    if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; return; }
+    if (wrap.dataset.open === "1") { e.preventDefault(); e.stopPropagation(); wrap.dataset.open = "0"; setX(0); }
+  }, true);
+  return wrap;
+}
+
+function expenseMatches(e, q) {
+  if (!q) return true;
+  const cat = categoryById(e.categoryId);
+  return ((e.description || "") + " " + (cat ? cat.name : "")).toLowerCase().includes(q);
+}
+
+function renderExpensesTab() {
+  const box = el("div", {});
+  let rows = expensesForMonth(selectedMonth);
+
+  const search = el("input", { className: "search", type: "search", placeholder: "Search expenses", value: expFilter.q });
+  search.oninput = () => { expFilter.q = search.value.trim().toLowerCase(); renderList(); };
+  box.appendChild(search);
+
+  const chipRow = el("div", { className: "chips" });
+  const mkChip = (label, id) => el("button", {
+    className: "chip" + (expFilter.categoryId === id ? " active" : ""),
+    onClick: () => { expFilter.categoryId = id; render(); } }, label);
+  chipRow.appendChild(mkChip("All", null));
+  state.categories.forEach((c) => chipRow.appendChild(mkChip(c.name, c.id)));
+  box.appendChild(chipRow);
+
+  const listHost = el("div", {});
+  box.appendChild(listHost);
+
+  function renderList() {
+    listHost.textContent = "";
+    let list = rows.filter((e) => expenseMatches(e, expFilter.q));
+    if (expFilter.categoryId) list = list.filter((e) => e.categoryId === expFilter.categoryId);
+    if (list.length === 0) {
+      listHost.appendChild(el("div", { className: "empty",
+        text: (expFilter.q || expFilter.categoryId) ? "No matching expenses." : `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
+      return;
+    }
+    let curDate = null, group = null, dayCents = 0, dayTotalEl = null;
+    list.forEach((e) => {
+      if (e.date !== curDate) {
+        if (dayTotalEl) dayTotalEl.textContent = money(fromCents(dayCents));
+        curDate = e.date; dayCents = 0;
+        dayTotalEl = el("span", {});
+        listHost.appendChild(el("div", { className: "day-head" },
+          el("span", { text: dayLabel(e.date) }), dayTotalEl));
+        group = el("div", {});
+        listHost.appendChild(group);
+      }
+      dayCents += centsOf(e.amount);
+      group.appendChild(swipeRow(expenseRowInner(e, false),
+        () => openEdit(e.id),
+        () => deleteExpenseWithUndo(e.id)));
+    });
+    if (dayTotalEl) dayTotalEl.textContent = money(fromCents(dayCents));
+  }
+  renderList();
   return box;
 }
 
@@ -575,14 +811,6 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && !modal().hidden) closeModal();
 });
 
-function renderAddButton() {
-  return el("button", { className: "btn primary", style: "width:100%;margin-top:6px;",
-    onClick: () => {
-      if (state.categories.length === 0) return openNeedCategory();
-      openExpenseForm(null);
-    } }, "Add expense");
-}
-
 function openNeedCategory() {
   openModal(el("div", {},
     el("h2", { text: "Add a category first" }),
@@ -606,14 +834,15 @@ function openEdit(id) { openExpenseForm(id); }
 
 function openExpenseForm(id) {
   const editing = id != null ? state.expenses.find((e) => e.id === id) : null;
+  if (id != null && !editing) return;
   const vals = {
     amount: editing ? String(editing.amount) : "",
-    categoryId: editing ? editing.categoryId : state.categories[0].id,
+    categoryId: editing ? editing.categoryId
+         : (categoryById(lastCategoryId) ? lastCategoryId : state.categories[0].id),
     date: editing ? editing.date
          : (selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`),
     description: editing ? (editing.description || "") : "",
   };
-  let deleteArmed = false;
 
   const amountInput = el("input", { type: "number", step: "0.01", inputmode: "decimal", value: vals.amount });
   const catSelect = el("select", {},
@@ -646,7 +875,9 @@ function openExpenseForm(id) {
       state.expenses.push({ id: uid(), amount: Math.round(Number(data.amount) * 100) / 100, categoryId: data.categoryId,
         date: data.date, description: descInput.value.trim() });
     }
+    lastCategoryId = data.categoryId;
     save(); closeModal(); render();
+    toast(editing ? "Saved" : "Expense added");
   }
 
   const actions = el("div", { className: "modal-actions" },
@@ -666,17 +897,7 @@ function openExpenseForm(id) {
 
   if (editing) {
     const delBtn = el("button", { className: "btn danger" }, "Delete");
-    let deleteTimer = null;
-    delBtn.onclick = () => {
-      if (!deleteArmed) {
-        deleteArmed = true; delBtn.textContent = "Confirm delete";
-        deleteTimer = setTimeout(() => { deleteArmed = false; delBtn.textContent = "Delete"; }, 3000);
-        return;
-      }
-      if (deleteTimer) clearTimeout(deleteTimer);
-      state.expenses = state.expenses.filter((e) => e.id !== editing.id);
-      save(); closeModal(); render();
-    };
+    delBtn.onclick = () => { closeModal(); deleteExpenseWithUndo(editing.id); };
     card.appendChild(el("div", { style: "margin-top:10px;" }, delBtn));
   }
   openModal(card);

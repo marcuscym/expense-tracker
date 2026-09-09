@@ -1,6 +1,6 @@
 /* Simple offline cache for the Expenses app.
    Bump CACHE when any cached file changes so old copies are dropped. */
-const CACHE = "expenses-v7";
+const CACHE = "expenses-v9";
 const ASSETS = [
   "./",
   "./index.html",
