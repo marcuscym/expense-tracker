@@ -208,6 +208,11 @@
            background:var(--bg); color:var(--text); min-height:36px; text-align:right; }
   .vc-step { min-height:36px; min-width:40px; border-radius:8px; border:1px solid var(--line);
              background:var(--card); color:var(--text); font-weight:600; }
+  .bills-card { border:1px solid var(--line); border-radius:16px; padding:6px 14px; margin-bottom:16px; }
+  .bills-card .vc-row.est .vc-nm { color:var(--text); }
+  .vc-tag { display:inline-block; margin-left:6px; font-size:10px; font-weight:500; color:#854F0B;
+            background:#FAEEDA; border-radius:99px; padding:1px 7px; vertical-align:1px; }
+  @media (prefers-color-scheme: dark){ .vc-tag { color:#FAC775; background:#412402; } }
   .vary-lbl { display:flex; align-items:center; gap:8px; flex:1; font-size:13px; color:var(--text); }
   .vary-lbl input { min-height:0; }
   .fc-toggle .chev.open { transform:rotate(90deg); }
@@ -633,6 +638,8 @@ function renderOverviewTab() {
   const box = el("div", {});
   box.appendChild(renderQuickBar());
   box.appendChild(renderSummary());
+  const ba = renderBillsAdjust();
+  if (ba) box.appendChild(ba);
   box.appendChild(renderForecast());
   box.appendChild(renderCategories());
   box.appendChild(renderRecent());
@@ -768,6 +775,40 @@ function renderSummary() {
       el("div", { className: "sub", text: sub })));
 }
 
+function renderBillsAdjust() {
+  const varied = centsOf(state.income) > 0 ? state.commitments.filter((c) => c.varies) : [];
+  if (!varied.length) return null;
+
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title", text: `This month's bills · ${fmtMonth(selectedMonth).split(" ")[0]}` }));
+  const card = el("div", { className: "bills-card" });
+  let rerenderT = null;
+  const scheduleRender = () => { if (rerenderT) clearTimeout(rerenderT); rerenderT = setTimeout(render, 450); };
+
+  varied.forEach((c) => {
+    if (!c.byMonth) c.byMonth = {};
+    const isSet = c.byMonth[selectedMonth] != null;
+    const inp = el("input", { className: "vc-in", type: "number", step: "0.01", inputmode: "decimal",
+      value: String(commitmentAmount(c, selectedMonth)) });
+    const write = (v) => {
+      if (!(v > 0)) delete c.byMonth[selectedMonth];
+      else c.byMonth[selectedMonth] = Math.round(v * 100) / 100;
+      save();
+    };
+    inp.onchange = () => { write(Number(inp.value)); render(); };
+    const step = (d) => el("button", { className: "vc-step",
+      onClick: () => {
+        inp.value = Math.max(0, Math.round(((Number(inp.value) || 0) + d) * 100) / 100).toString();
+        write(Number(inp.value)); scheduleRender();
+      } }, d > 0 ? "+" + d : String(d));
+    card.appendChild(el("div", { className: "vc-row" + (isSet ? "" : " est") },
+      el("span", { className: "vc-nm", text: c.name }, isSet ? null : el("span", { className: "vc-tag", text: "estimate" })),
+      step(-10), inp, step(10)));
+  });
+  box.appendChild(card);
+  return box;
+}
+
 function renderForecast() {
   const box = el("div", {});
   if (centsOf(state.income) <= 0) return box;
@@ -797,34 +838,6 @@ function renderForecast() {
 
   card.appendChild(row("Income", money(fromCents(f.income))));
   card.appendChild(row("Commitments", "− " + money(fromCents(f.commit)), true));
-
-  const varied = state.commitments.filter((c) => c.varies);
-  if (varied.length) {
-    card.appendChild(el("div", { className: "fc-sub", style: "margin-top:6px;",
-      text: `Adjust for ${fmtMonth(selectedMonth).split(" ")[0]}` }));
-    let rerenderT = null;
-    const scheduleRender = () => { if (rerenderT) clearTimeout(rerenderT); rerenderT = setTimeout(render, 450); };
-    varied.forEach((c) => {
-      if (!c.byMonth) c.byMonth = {};
-      const isSet = c.byMonth[selectedMonth] != null;
-      const inp = el("input", { className: "vc-in", type: "number", step: "0.01", inputmode: "decimal",
-        value: String(commitmentAmount(c, selectedMonth)) });
-      const write = (v) => {
-        if (!(v > 0)) delete c.byMonth[selectedMonth];
-        else c.byMonth[selectedMonth] = Math.round(v * 100) / 100;
-        save();
-      };
-      inp.onchange = () => { write(Number(inp.value)); render(); };
-      const step = (d) => el("button", { className: "vc-step",
-        onClick: () => {
-          inp.value = Math.max(0, Math.round(((Number(inp.value) || 0) + d) * 100) / 100).toString();
-          write(Number(inp.value)); scheduleRender();
-        } }, d > 0 ? "+" + d : String(d));
-      card.appendChild(el("div", { className: "vc-row" },
-        el("span", { className: "vc-nm", text: c.name + (isSet ? "" : " · estimate") }),
-        step(-10), inp, step(10)));
-    });
-  }
 
   const note = (t) => card.appendChild(el("div", { className: "fc-note", text: t }));
   const daysLeftTxt = `${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"} left`;
