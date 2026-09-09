@@ -1302,19 +1302,17 @@ function openSettingsInto(card, msg) {
     budI.onchange = commit;
     emojiI.onchange = commit;
 
-    let armed = false;
-    let armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
       if (!canDeleteCategory(c.id)) { msg.textContent = "Reassign or delete this category's expenses first."; return; }
-      if (!armed) {
-        armed = true; del.textContent = "Confirm";
-        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000);
-        return;
-      }
-      if (armTimer) clearTimeout(armTimer);
-      state.categories = state.categories.filter((x) => x.id !== c.id);
-      save(); render(); openSettingsInto(card, msg);
+      const idx = state.categories.findIndex((x) => x.id === c.id);
+      const removed = state.categories[idx];
+      state.categories.splice(idx, 1);
+      save(); render(); refresh();
+      toast(`Deleted ${removed.name}`, "Undo", () => {
+        state.categories.splice(Math.min(idx, state.categories.length), 0, removed);
+        save(); render(); refresh();
+      });
     };
 
     card.appendChild(el("div", { className: "cat-edit" }, emojiI, nameI, budI, del));
@@ -1377,14 +1375,16 @@ function openSettingsInto(card, msg) {
     variesBox.checked = !!c.varies;
     variesBox.onchange = () => { c.varies = variesBox.checked; if (!c.varies) c.byMonth = {}; save(); render(); refresh(); };
 
-    let armed = false, armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
-      if (!armed) { armed = true; del.textContent = "Confirm";
-        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
-      if (armTimer) clearTimeout(armTimer);
-      state.commitments = state.commitments.filter((x) => x.id !== c.id);
+      const idx = state.commitments.findIndex((x) => x.id === c.id);
+      const removed = state.commitments[idx];
+      state.commitments.splice(idx, 1);
       save(); render(); refresh();
+      toast(`Deleted ${removed.name}`, "Undo", () => {
+        state.commitments.splice(Math.min(idx, state.commitments.length), 0, removed);
+        save(); render(); refresh();
+      });
     };
     card.appendChild(el("div", { className: "rec-edit" },
       el("div", { className: "r" }, nameI, amtI),
@@ -1431,14 +1431,16 @@ function openSettingsInto(card, msg) {
       save(); render(); refresh();
     };
     [nameI, amtI, catI, dayI].forEach((x) => x.onchange = commit);
-    let armed = false, armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
-      if (!armed) { armed = true; del.textContent = "Confirm";
-        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
-      if (armTimer) clearTimeout(armTimer);
-      state.recurring = state.recurring.filter((x) => x.id !== r.id);
+      const idx = state.recurring.findIndex((x) => x.id === r.id);
+      const removed = state.recurring[idx];
+      state.recurring.splice(idx, 1);
       save(); render(); refresh();
+      toast(`Deleted ${removed.name}`, "Undo", () => {
+        state.recurring.splice(Math.min(idx, state.recurring.length), 0, removed);
+        save(); render(); refresh();
+      });
     };
     card.appendChild(el("div", { className: "rec-edit" },
       el("div", { className: "r" }, nameI, amtI),
@@ -1491,14 +1493,16 @@ function openSettingsInto(card, msg) {
     const down = el("button", { className: "reorder", "aria-label": "Move down", onClick: () => move(1) }, "↓");
     if (qi === 0) up.disabled = true;
     if (qi === state.quick.length - 1) down.disabled = true;
-    let armed = false, armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
-      if (!armed) { armed = true; del.textContent = "Confirm";
-        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
-      if (armTimer) clearTimeout(armTimer);
-      state.quick = state.quick.filter((x) => x.id !== q.id);
+      const idx = state.quick.findIndex((x) => x.id === q.id);
+      const removed = state.quick[idx];
+      state.quick.splice(idx, 1);
       save(); render(); refresh();
+      toast(`Deleted ${removed.label}`, "Undo", () => {
+        state.quick.splice(Math.min(idx, state.quick.length), 0, removed);
+        save(); render(); refresh();
+      });
     };
     card.appendChild(el("div", { className: "rec-edit" },
       el("div", { className: "r" }, labI, amtI),
