@@ -164,6 +164,10 @@
   .rec-edit .reorder { min-height:44px; min-width:38px; flex:0 0 auto; padding:0;
                        border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); font-size:15px; }
   .rec-edit .reorder[disabled] { opacity:.35; }
+  .reassign { padding:8px 0 12px; border-bottom:1px solid var(--line); }
+  .reassign .r { display:flex; gap:8px; align-items:center; }
+  .reassign select { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
+                     border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
   .settings-add { display:flex; gap:8px; margin-top:14px; }
   .settings-add input { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
                         border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
@@ -1302,17 +1306,39 @@ function openSettingsInto(card, msg) {
     budI.onchange = commit;
     emojiI.onchange = commit;
 
-    const del = el("button", {}, "Delete");
-    del.onclick = () => {
-      if (!canDeleteCategory(c.id)) { msg.textContent = "Reassign or delete this category's expenses first."; return; }
+    const removeCategory = (reassignTo) => {
+      const affected = state.expenses.filter((e) => e.categoryId === c.id);
+      const prevIds = affected.map((e) => e.categoryId);
+      affected.forEach((e) => { e.categoryId = reassignTo || ""; });
       const idx = state.categories.findIndex((x) => x.id === c.id);
       const removed = state.categories[idx];
       state.categories.splice(idx, 1);
       save(); render(); refresh();
       toast(`Deleted ${removed.name}`, "Undo", () => {
         state.categories.splice(Math.min(idx, state.categories.length), 0, removed);
+        affected.forEach((e, i) => { e.categoryId = prevIds[i]; });
         save(); render(); refresh();
       });
+    };
+
+    const del = el("button", {}, "Delete");
+    del.onclick = () => {
+      const n = state.expenses.filter((e) => e.categoryId === c.id).length;
+      if (n === 0) { removeCategory(null); return; }
+      const others = state.categories.filter((x) => x.id !== c.id);
+      const sel = el("select", {},
+        el("option", { value: "", text: "Leave uncategorized" }),
+        ...others.map((x) => el("option", { value: x.id, text: (x.emoji ? x.emoji + " " : "") + x.name })));
+      const prompt = el("div", { className: "reassign" },
+        el("div", { className: "fc-note", style: "margin:0 0 6px;",
+          text: `${n} expense${n === 1 ? "" : "s"} use ${c.name}. Move them to:` }),
+        el("div", { className: "r", style: "margin-bottom:8px;" }, sel),
+        el("div", { className: "r" },
+          el("button", { className: "btn", onClick: refresh }, "Cancel"),
+          el("button", { className: "btn danger",
+            onClick: () => removeCategory(sel.value || null) }, "Delete category")));
+      del.closest(".cat-edit").after(prompt);
+      del.disabled = true;
     };
 
     card.appendChild(el("div", { className: "cat-edit" }, emojiI, nameI, budI, del));
