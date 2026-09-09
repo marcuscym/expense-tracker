@@ -114,6 +114,7 @@
   .fc-big.good { color:var(--ok); }
   .fc-big.bad { color:var(--over); }
   .fc-note { font-size:12px; color:var(--muted); margin-top:8px; }
+  .fc-sub { font-size:12px; color:var(--muted); margin:14px 0 2px; }
   .fc-cta { margin-bottom:16px; }
 </style>
 </head>
@@ -293,10 +294,11 @@ function forecast(key) {
     const avg = avgMonthlySpendCents(key);
     projectedEveryday = avg != null ? avg : spent; projectedFromPace = false;
   }
+  const remainingNow = available - spent;
   const projectedLeftover = available - projectedEveryday;
-  const safePerDay = mp.daysLeft > 0 ? Math.round((available - spent) / mp.daysLeft) : null;
+  const safePerDay = mp.daysLeft > 0 ? Math.round(remainingNow / mp.daysLeft) : null;
   const savingsRate = income > 0 ? projectedLeftover / income : null;
-  return { income, commit, spent, available, mp, projectedEveryday, projectedFromPace, projectedLeftover, safePerDay, savingsRate };
+  return { income, commit, spent, available, mp, projectedEveryday, projectedFromPace, remainingNow, projectedLeftover, safePerDay, savingsRate };
 }
 
 function ringSvg(percent, tone) {
@@ -407,29 +409,38 @@ function renderForecast() {
   const row = (k, v, neg) => el("div", { className: "fc-row" },
     el("span", { className: "k", text: k }),
     el("span", { className: "v" + (neg ? " neg" : ""), text: v }));
+  const signed = (cents) => (cents < 0 ? "− " : "") + money(fromCents(Math.abs(cents)));
+  const bigRow = (k, cents) => el("div", { className: "fc-row total" },
+    el("span", { className: "k", text: k }),
+    el("span", { className: "v fc-big " + (cents >= 0 ? "good" : "bad"), text: signed(cents) }));
 
   card.appendChild(row("Income", money(fromCents(f.income))));
   card.appendChild(row("Fixed commitments", "− " + money(fromCents(f.commit)), true));
-  card.appendChild(row(f.mp.pos === "past" ? "Everyday spending" : "Everyday so far",
-    "− " + money(fromCents(f.spent)), true));
-  if (f.mp.pos !== "past") {
-    card.appendChild(row(f.projectedFromPace ? "Projected total" : "Projected (estimate)",
-      "− " + money(fromCents(f.projectedEveryday)), true));
+
+  if (f.mp.pos === "past") {
+    card.appendChild(row("Everyday spending", "− " + money(fromCents(f.spent)), true));
+    card.appendChild(bigRow("Left over", f.projectedLeftover));
+  } else if (f.mp.pos === "future") {
+    card.appendChild(row("Estimated spending", "− " + money(fromCents(f.projectedEveryday)), true));
+    card.appendChild(bigRow("Projected leftover", f.projectedLeftover));
+    card.appendChild(el("div", { className: "fc-note", text: "Spending estimated from your recent monthly average." }));
+  } else {
+    card.appendChild(row("Spent so far", "− " + money(fromCents(f.spent)), true));
+    card.appendChild(bigRow("Money left this month", f.remainingNow));
+    if (f.safePerDay != null) {
+      card.appendChild(el("div", { className: "fc-note", text: f.safePerDay >= 0
+        ? `About ${money(fromCents(f.safePerDay))} a day for the ${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"} left.`
+        : "Nothing left in the everyday budget for the rest of the month." }));
+    }
+    card.appendChild(el("div", { className: "fc-sub", text: "If you keep spending at this pace" }));
+    card.appendChild(row("Projected spending (full month)", "− " + money(fromCents(f.projectedEveryday)), true));
+    card.appendChild(row("Left over at month end", signed(f.projectedLeftover)));
   }
 
-  const pos = f.projectedLeftover >= 0;
-  card.appendChild(el("div", { className: "fc-row total" },
-    el("span", { className: "k", text: f.mp.pos === "past" ? "Left over" : "Projected leftover" }),
-    el("span", { className: "v fc-big " + (pos ? "good" : "bad"),
-      text: (pos ? "" : "− ") + money(fromCents(Math.abs(f.projectedLeftover))) })));
-
-  if (f.safePerDay != null) {
-    card.appendChild(el("div", { className: "fc-note", text: f.safePerDay >= 0
-      ? `Safe to spend about ${money(fromCents(f.safePerDay))} a day for the next ${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"}.`
-      : "You're over the everyday budget for the rest of this month." }));
-  }
   if (f.savingsRate != null) {
-    card.appendChild(el("div", { className: "fc-note", text: `Savings rate: ${Math.round(f.savingsRate * 100)}% of income.` }));
+    const sr = `${Math.round(f.savingsRate * 100)}% of income.`;
+    card.appendChild(el("div", { className: "fc-note",
+      text: (f.mp.pos === "past" ? "Savings rate: " : "Projected savings rate: ") + sr }));
   }
   box.appendChild(card);
   return box;
