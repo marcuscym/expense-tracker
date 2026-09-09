@@ -161,6 +161,9 @@
   .rec-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
                      background:none; color:var(--danger); padding:0 10px; white-space:nowrap; flex:0 0 auto; }
   .rec-edit .btn.primary { border-color:transparent; color:var(--accent-ink); }
+  .rec-edit .reorder { min-height:44px; min-width:38px; flex:0 0 auto; padding:0;
+                       border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); font-size:15px; }
+  .rec-edit .reorder[disabled] { opacity:.35; }
   .settings-add { display:flex; gap:8px; margin-top:14px; }
   .settings-add input { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
                         border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
@@ -1331,7 +1334,7 @@ function openSettingsInto(card, msg) {
   card.appendChild(el("div", { className: "settings-add" }, addEmoji, addName, addBud, addBtn));
 
   // ---- Income & commitments ----
-  card.appendChild(el("div", { className: "set-h", text: "Forecast setup" }));
+  card.appendChild(el("div", { className: "set-h", text: "Income & commitments" }));
 
   const incomeI = el("input", { type: "number", step: "1", min: "0",
     value: state.income ? String(state.income) : "", placeholder: "Monthly income (RM)" });
@@ -1354,6 +1357,9 @@ function openSettingsInto(card, msg) {
   };
   card.appendChild(el("div", { className: "field" },
     el("label", { text: "Monthly savings goal (RM)" }), goalI));
+
+  card.appendChild(el("div", { className: "fc-note", style: "margin:6px 0 4px;font-weight:500;color:var(--text);",
+    text: "Fixed commitments (rent, insurance, subscriptions)" }));
 
   state.commitments.forEach((c) => {
     const nameI = el("input", { type: "text", value: c.name });
@@ -1462,7 +1468,7 @@ function openSettingsInto(card, msg) {
   // ---- Quick log ----
   card.appendChild(el("div", { className: "set-h", text: "Quick log" }));
 
-  state.quick.forEach((q) => {
+  state.quick.forEach((q, qi) => {
     const labI = el("input", { type: "text", value: q.label });
     const amtI = el("input", { type: "number", step: "0.01", min: "0", value: String(q.amount), style: "flex:0 0 90px;width:90px;" });
     const catI = el("select", {}, ...catOptions(q.categoryId));
@@ -1474,6 +1480,17 @@ function openSettingsInto(card, msg) {
       save(); render(); refresh();
     };
     [labI, amtI, catI].forEach((x) => x.onchange = commit);
+    const move = (dir) => {
+      const j = qi + dir;
+      if (j < 0 || j >= state.quick.length) return;
+      const arr = state.quick;
+      [arr[qi], arr[j]] = [arr[j], arr[qi]];
+      save(); render(); refresh();
+    };
+    const up = el("button", { className: "reorder", "aria-label": "Move up", onClick: () => move(-1) }, "↑");
+    const down = el("button", { className: "reorder", "aria-label": "Move down", onClick: () => move(1) }, "↓");
+    if (qi === 0) up.disabled = true;
+    if (qi === state.quick.length - 1) down.disabled = true;
     let armed = false, armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
@@ -1485,7 +1502,7 @@ function openSettingsInto(card, msg) {
     };
     card.appendChild(el("div", { className: "rec-edit" },
       el("div", { className: "r" }, labI, amtI),
-      el("div", { className: "r" }, catI, del)));
+      el("div", { className: "r" }, catI, up, down, del)));
   });
 
   const qLab = el("input", { type: "text", placeholder: "e.g. Lunch, Petrol" });
