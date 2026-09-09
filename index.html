@@ -251,6 +251,7 @@
 <script>
 "use strict";
 
+const APP_VERSION = "v21 · 2026-09-09";
 const KEY = "expense-tracker-v1";
 const BACKUP_KEY = "expense-tracker-v1-backup";
 let storageAvailable = true;
@@ -1345,6 +1346,8 @@ function openSettingsInto(card, msg) {
     card.appendChild(item("backup", "Download or restore your data"));
     card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px;" },
       el("button", { className: "btn", onClick: closeModal }, "Done")));
+    card.appendChild(el("div", { className: "fc-note", style: "text-align:center;margin-top:14px;",
+      text: `Expenses ${APP_VERSION}` }));
     return;
   }
 
