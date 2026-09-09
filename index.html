@@ -28,7 +28,7 @@
   * { box-sizing: border-box; }
   body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
          background: var(--bg); color: var(--text); }
-  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px calc(96px + env(safe-area-inset-bottom)); }
+  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px calc(130px + env(safe-area-inset-bottom)); }
   button { font: inherit; cursor: pointer; }
 
   .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:9;
@@ -181,6 +181,14 @@
                background:none; border:none; padding:6px 2px 8px; color:var(--muted); }
   .fc-toggle .t { font-size:13px; font-weight:500; }
   .fc-toggle .chev { font-size:12px; transition:transform .15s; }
+  .vc-row { display:flex; align-items:center; gap:8px; padding:6px 0; }
+  .vc-nm { flex:1; min-width:0; font-size:13px; }
+  .vc-in { width:82px; font:inherit; padding:6px 8px; border-radius:8px; border:1px solid var(--line);
+           background:var(--bg); color:var(--text); min-height:36px; text-align:right; }
+  .vc-step { min-height:36px; min-width:40px; border-radius:8px; border:1px solid var(--line);
+             background:var(--card); color:var(--text); font-weight:600; }
+  .vary-lbl { display:flex; align-items:center; gap:8px; flex:1; font-size:13px; color:var(--text); }
+  .vary-lbl input { min-height:0; }
   .fc-toggle .chev.open { transform:rotate(90deg); }
   .fc-collapsed { border:1px solid var(--line); border-radius:14px; padding:12px 14px;
                   display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
@@ -273,7 +281,15 @@ function normalize(obj) {
     .map((c) => ({ id: c.id, name: c.name, budget: c.budget, emoji: typeof c.emoji === "string" ? c.emoji.slice(0, 4) : "" }));
   if (obj && Array.isArray(obj.expenses))   s.expenses   = obj.expenses.filter(okExp);
   if (obj && Array.isArray(obj.commitments)) s.commitments = obj.commitments.filter(okCom)
-    .map((c) => ({ id: c.id, name: c.name, amount: Number(c.amount) }));
+    .map((c) => {
+      const byMonth = {};
+      if (c.byMonth && typeof c.byMonth === "object") {
+        for (const [k, v] of Object.entries(c.byMonth)) {
+          if (/^\d{4}-\d{2}$/.test(k) && Number.isFinite(Number(v)) && Number(v) >= 0) byMonth[k] = Number(v);
+        }
+      }
+      return { id: c.id, name: c.name, amount: Number(c.amount), varies: c.varies === true, byMonth };
+    });
   if (obj && Array.isArray(obj.recurring)) s.recurring = obj.recurring.filter(okRec)
     .map((r) => ({ id: r.id, name: r.name, amount: Number(r.amount),
       categoryId: typeof r.categoryId === "string" ? r.categoryId : "",
@@ -389,7 +405,11 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 const totalBudgetCents = () => sumCents(state.categories.map((c) => centsOf(c.budget)));
 const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
-const commitmentCents = () => sumCents(state.commitments.map((c) => centsOf(c.amount)));
+function commitmentAmount(c, key) {
+  if (c.varies && c.byMonth && c.byMonth[key] != null) return c.byMonth[key];
+  return c.amount;
+}
+const commitmentCents = (key) => sumCents(state.commitments.map((c) => centsOf(commitmentAmount(c, key || selectedMonth))));
 
 function daysInMonthOf(key) {
   const [y, m] = key.split("-").map(Number);
@@ -419,7 +439,7 @@ function avgMonthlySpendCents(beforeKey) {
 
 function forecast(key) {
   const income = centsOf(state.income);
-  const commit = commitmentCents();
+  const commit = commitmentCents(key);
   const spent = monthSpentCents(key);
   const available = income - commit;
   const mp = monthPosition(key);
@@ -552,7 +572,7 @@ function renderTrendsTab() {
   const keys = [];
   for (let i = 5; i >= 0; i--) keys.push(shiftMonth(selectedMonth, -i));
   const spends = keys.map((k) => monthSpentCents(k));
-  const available = centsOf(state.income) - commitmentCents();
+  const available = centsOf(state.income) - commitmentCents(selectedMonth);
   const maxSpend = Math.max(1, ...spends);
   const showLine = centsOf(state.income) > 0 && available > 0 && available <= maxSpend * 1.6;
   const maxVal = showLine ? Math.max(maxSpend, available) : maxSpend * 1.12;
@@ -690,7 +710,35 @@ function renderForecast() {
     el("span", { className: "v fc-big " + (cents >= 0 ? "good" : "bad"), text: signed(cents) }));
 
   card.appendChild(row("Income", money(fromCents(f.income))));
-  card.appendChild(row("Fixed commitments", "− " + money(fromCents(f.commit)), true));
+  card.appendChild(row("Commitments", "− " + money(fromCents(f.commit)), true));
+
+  const varied = state.commitments.filter((c) => c.varies);
+  if (varied.length) {
+    card.appendChild(el("div", { className: "fc-sub", style: "margin-top:6px;",
+      text: `Adjust for ${fmtMonth(selectedMonth).split(" ")[0]}` }));
+    let rerenderT = null;
+    const scheduleRender = () => { if (rerenderT) clearTimeout(rerenderT); rerenderT = setTimeout(render, 450); };
+    varied.forEach((c) => {
+      if (!c.byMonth) c.byMonth = {};
+      const isSet = c.byMonth[selectedMonth] != null;
+      const inp = el("input", { className: "vc-in", type: "number", step: "0.01", inputmode: "decimal",
+        value: String(commitmentAmount(c, selectedMonth)) });
+      const write = (v) => {
+        if (!(v > 0)) delete c.byMonth[selectedMonth];
+        else c.byMonth[selectedMonth] = Math.round(v * 100) / 100;
+        save();
+      };
+      inp.onchange = () => { write(Number(inp.value)); render(); };
+      const step = (d) => el("button", { className: "vc-step",
+        onClick: () => {
+          inp.value = Math.max(0, Math.round(((Number(inp.value) || 0) + d) * 100) / 100).toString();
+          write(Number(inp.value)); scheduleRender();
+        } }, d > 0 ? "+" + d : String(d));
+      card.appendChild(el("div", { className: "vc-row" },
+        el("span", { className: "vc-nm", text: c.name + (isSet ? "" : " · estimate") }),
+        step(-10), inp, step(10)));
+    });
+  }
 
   const note = (t) => card.appendChild(el("div", { className: "fc-note", text: t }));
   const daysLeftTxt = `${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"} left`;
@@ -1250,7 +1298,7 @@ function openSettingsInto(card, msg) {
 
   state.commitments.forEach((c) => {
     const nameI = el("input", { type: "text", value: c.name });
-    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(c.amount) });
+    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(c.amount), style: "flex:0 0 90px;width:90px;" });
     const commit = () => {
       const res = validateCommitment({ name: nameI.value, amount: amtI.value }, c.id);
       if (!res.ok) { msg.textContent = res.message; nameI.value = c.name; amtI.value = String(c.amount); return; }
@@ -1259,6 +1307,11 @@ function openSettingsInto(card, msg) {
       save(); render(); refresh();
     };
     nameI.onchange = commit; amtI.onchange = commit;
+
+    const variesBox = el("input", { type: "checkbox", style: "flex:0 0 auto;min-height:0;width:18px;height:18px;" });
+    variesBox.checked = !!c.varies;
+    variesBox.onchange = () => { c.varies = variesBox.checked; if (!c.varies) c.byMonth = {}; save(); render(); refresh(); };
+
     let armed = false, armTimer = null;
     const del = el("button", {}, "Delete");
     del.onclick = () => {
@@ -1268,7 +1321,11 @@ function openSettingsInto(card, msg) {
       state.commitments = state.commitments.filter((x) => x.id !== c.id);
       save(); render(); refresh();
     };
-    card.appendChild(el("div", { className: "cat-edit" }, nameI, amtI, del));
+    card.appendChild(el("div", { className: "rec-edit" },
+      el("div", { className: "r" }, nameI, amtI),
+      el("div", { className: "r" },
+        el("label", { className: "vary-lbl" }, variesBox, el("span", { text: "Varies each month" })),
+        del)));
   });
 
   const cName = el("input", { type: "text", placeholder: "e.g. Rent, Insurance" });
@@ -1278,12 +1335,12 @@ function openSettingsInto(card, msg) {
     const res = validateCommitment({ name: cName.value, amount: cAmt.value }, null);
     if (!res.ok) { msg.textContent = res.message; return; }
     msg.textContent = "";
-    state.commitments.push({ id: uid(), name: cName.value.trim(), amount: Number(cAmt.value) });
+    state.commitments.push({ id: uid(), name: cName.value.trim(), amount: Number(cAmt.value), varies: false, byMonth: {} });
     save(); render(); refresh();
   };
   card.appendChild(el("div", { className: "settings-add" }, cName, cAmt, cAdd));
   card.appendChild(el("div", { className: "fc-note",
-    text: "Commitments are used only for the forecast. Keep logging the actual payments as expenses if you want them in your categories." }));
+    text: "Commitments are forecast-only (not logged as expenses). Tick “Varies each month” for bills like electricity — you then set each month's actual amount on the forecast card." }));
 
   // ---- Recurring ----
   card.appendChild(el("div", { className: "set-h", text: "Recurring expenses" }));
