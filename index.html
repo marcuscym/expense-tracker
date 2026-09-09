@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#26215C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Expenses">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Expenses</title>
 <style>
   :root {
@@ -91,7 +97,24 @@
   .cat-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
                      background:none; color:var(--danger); padding:0 10px; white-space:nowrap; }
   .settings-add { display:flex; gap:8px; margin-top:14px; }
+  .settings-add input { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
+                        border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
+  .settings-add button { flex:0 0 auto; }
   .settings-msg { color:var(--danger); font-size:12px; margin-top:4px; }
+  .set-h { font-size:13px; font-weight:500; color:var(--muted); margin:20px 0 8px; }
+  .set-h:first-child { margin-top:4px; }
+  .fc { border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; }
+  .fc h3 { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--muted); }
+  .fc-row { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:14px; }
+  .fc-row .v { font-weight:500; white-space:nowrap; }
+  .fc-row .v.neg { color:var(--muted); }
+  .fc-row.total { border-top:1px solid var(--line); margin-top:6px; padding-top:10px; }
+  .fc-row.total .k { font-weight:500; }
+  .fc-big { font-size:22px; font-weight:500; }
+  .fc-big.good { color:var(--ok); }
+  .fc-big.bad { color:var(--over); }
+  .fc-note { font-size:12px; color:var(--muted); margin-top:8px; }
+  .fc-cta { margin-bottom:16px; }
 </style>
 </head>
 <body>
@@ -121,6 +144,8 @@ function DEFAULT_STATE() {
       { id: uid(), name: "Housing", budget: 1600 },
     ],
     expenses: [],
+    income: 0,
+    commitments: [],
   };
 }
 
@@ -151,8 +176,12 @@ function normalize(obj) {
   const s = DEFAULT_STATE();
   const okCat = (c) => c && typeof c.id === "string" && typeof c.name === "string";
   const okExp = (e) => e && typeof e.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "");
+  const okCom = (c) => c && typeof c.id === "string" && typeof c.name === "string" && Number.isFinite(Number(c.amount));
   if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat);
   if (obj && Array.isArray(obj.expenses))   s.expenses   = obj.expenses.filter(okExp);
+  if (obj && Array.isArray(obj.commitments)) s.commitments = obj.commitments.filter(okCom)
+    .map((c) => ({ id: c.id, name: c.name, amount: Number(c.amount) }));
+  if (obj && Number.isFinite(Number(obj.income)) && Number(obj.income) >= 0) s.income = Number(obj.income);
   s.version = 1;
   return s;
 }
@@ -221,6 +250,54 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 const totalBudgetCents = () => sumCents(state.categories.map((c) => centsOf(c.budget)));
 const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
+const commitmentCents = () => sumCents(state.commitments.map((c) => centsOf(c.amount)));
+
+function daysInMonthOf(key) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+function monthPosition(key) {
+  const now = new Date();
+  const curKey = monthKey(now);
+  const dim = daysInMonthOf(key);
+  if (key < curKey) return { pos: "past", dim, day: dim, daysLeft: 0 };
+  if (key > curKey) return { pos: "future", dim, day: 0, daysLeft: dim };
+  const day = now.getDate();
+  return { pos: "current", dim, day, daysLeft: Math.max(0, dim - day) };
+}
+
+function avgMonthlySpendCents(beforeKey) {
+  let k = shiftMonth(beforeKey, -1), got = [], guard = 0;
+  while (got.length < 3 && guard < 24) {
+    const c = monthSpentCents(k);
+    if (c > 0) got.push(c);
+    k = shiftMonth(k, -1); guard++;
+  }
+  if (!got.length) return null;
+  return Math.round(got.reduce((a, b) => a + b, 0) / got.length);
+}
+
+function forecast(key) {
+  const income = centsOf(state.income);
+  const commit = commitmentCents();
+  const spent = monthSpentCents(key);
+  const available = income - commit;
+  const mp = monthPosition(key);
+  let projectedEveryday, projectedFromPace;
+  if (mp.pos === "past") {
+    projectedEveryday = spent; projectedFromPace = false;
+  } else if (mp.pos === "current" && mp.day > 0 && spent > 0) {
+    projectedEveryday = Math.round(spent / mp.day * mp.dim); projectedFromPace = true;
+  } else {
+    const avg = avgMonthlySpendCents(key);
+    projectedEveryday = avg != null ? avg : spent; projectedFromPace = false;
+  }
+  const projectedLeftover = available - projectedEveryday;
+  const safePerDay = mp.daysLeft > 0 ? Math.round((available - spent) / mp.daysLeft) : null;
+  const savingsRate = income > 0 ? projectedLeftover / income : null;
+  return { income, commit, spent, available, mp, projectedEveryday, projectedFromPace, projectedLeftover, safePerDay, savingsRate };
+}
 
 function ringSvg(percent, tone) {
   const NS = "http://www.w3.org/2000/svg";
@@ -266,6 +343,7 @@ function render() {
   try {
     root.appendChild(renderHeader());
     root.appendChild(renderSummary());
+    root.appendChild(renderForecast());
     root.appendChild(renderCategories());
     root.appendChild(renderRecent());
     root.appendChild(renderAddButton());
@@ -310,6 +388,51 @@ function renderSummary() {
         : `${money(fromCents(-left))} over ${money(fromCents(budget))}` }),
     ),
   );
+}
+
+function renderForecast() {
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title", text: `Forecast · ${fmtMonth(selectedMonth).split(" ")[0]}` }));
+
+  if (centsOf(state.income) <= 0) {
+    box.appendChild(el("div", { className: "fc fc-cta" },
+      el("div", { className: "fc-note", text: "Add your monthly income and fixed commitments in settings to see a forecast." }),
+      el("button", { className: "btn primary", style: "width:100%;margin-top:10px;",
+        onClick: () => { if (typeof openSettings === "function") openSettings(); } }, "Set up forecast")));
+    return box;
+  }
+
+  const f = forecast(selectedMonth);
+  const card = el("div", { className: "fc" });
+  const row = (k, v, neg) => el("div", { className: "fc-row" },
+    el("span", { className: "k", text: k }),
+    el("span", { className: "v" + (neg ? " neg" : ""), text: v }));
+
+  card.appendChild(row("Income", money(fromCents(f.income))));
+  card.appendChild(row("Fixed commitments", "− " + money(fromCents(f.commit)), true));
+  card.appendChild(row(f.mp.pos === "past" ? "Everyday spending" : "Everyday so far",
+    "− " + money(fromCents(f.spent)), true));
+  if (f.mp.pos !== "past") {
+    card.appendChild(row(f.projectedFromPace ? "Projected total" : "Projected (estimate)",
+      "− " + money(fromCents(f.projectedEveryday)), true));
+  }
+
+  const pos = f.projectedLeftover >= 0;
+  card.appendChild(el("div", { className: "fc-row total" },
+    el("span", { className: "k", text: f.mp.pos === "past" ? "Left over" : "Projected leftover" }),
+    el("span", { className: "v fc-big " + (pos ? "good" : "bad"),
+      text: (pos ? "" : "− ") + money(fromCents(Math.abs(f.projectedLeftover))) })));
+
+  if (f.safePerDay != null) {
+    card.appendChild(el("div", { className: "fc-note", text: f.safePerDay >= 0
+      ? `Safe to spend about ${money(fromCents(f.safePerDay))} a day for the next ${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"}.`
+      : "You're over the everyday budget for the rest of this month." }));
+  }
+  if (f.savingsRate != null) {
+    card.appendChild(el("div", { className: "fc-note", text: `Savings rate: ${Math.round(f.savingsRate * 100)}% of income.` }));
+  }
+  box.appendChild(card);
+  return box;
 }
 
 const CAT_PALETTE = ["#EF9F27", "#E24B4A", "#1D9E75", "#378ADD", "#7F77DD", "#D4537E", "#0F6E56", "#BA7517"];
@@ -532,6 +655,46 @@ function validateCategory({ name, budget }, existingId) {
   return { ok: true };
 }
 
+function validateCommitment({ name, amount }, existingId) {
+  const nm = (name || "").trim();
+  if (!nm) return { ok: false, message: "Enter a name." };
+  const dup = state.commitments.some((c) => c.id !== existingId && c.name.toLowerCase() === nm.toLowerCase());
+  if (dup) return { ok: false, message: "That name is already used." };
+  const a = Number(amount);
+  if (amount === "" || !isFinite(a) || a <= 0) return { ok: false, message: "Amount must be greater than 0." };
+  return { ok: true };
+}
+
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `expenses-backup-${todayISO()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importBackup(file, onDone, onErr) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try { parsed = JSON.parse(String(reader.result)); }
+    catch (e) { onErr("Couldn't read that file — is it a valid backup?"); return; }
+    const next = normalize(parsed);
+    if (!next.categories.length && !next.expenses.length && !next.commitments.length && !next.income) {
+      onErr("That file has no recognizable data."); return;
+    }
+    state = next;
+    save(); render();
+    onDone();
+  };
+  reader.onerror = () => onErr("Couldn't read that file.");
+  reader.readAsText(file);
+}
+
 function openSettings() {
   const msg = el("div", { className: "settings-msg" });
 
@@ -542,7 +705,10 @@ function openSettings() {
 
 function openSettingsInto(card, msg) {
   card.textContent = "";
-  card.appendChild(el("h2", { text: "Categories" }));
+  card.appendChild(el("h2", { text: "Settings" }));
+  const refresh = () => openSettingsInto(card, msg);
+
+  card.appendChild(el("div", { className: "set-h", text: "Categories" }));
 
   state.categories.forEach((c) => {
     const nameI = el("input", { type: "text", value: c.name });
@@ -587,9 +753,88 @@ function openSettingsInto(card, msg) {
     save(); render(); openSettingsInto(card, msg);
   };
   card.appendChild(el("div", { className: "settings-add" }, addName, addBud, addBtn));
+
+  // ---- Income & commitments ----
+  card.appendChild(el("div", { className: "set-h", text: "Income & commitments" }));
+
+  const incomeI = el("input", { type: "number", step: "1", min: "0",
+    value: state.income ? String(state.income) : "", placeholder: "Monthly income (RM)" });
+  incomeI.onchange = () => {
+    const v = Number(incomeI.value);
+    if (incomeI.value === "" ) { state.income = 0; msg.textContent = ""; save(); render(); refresh(); return; }
+    if (!isFinite(v) || v < 0) { msg.textContent = "Income must be 0 or more."; incomeI.value = state.income ? String(state.income) : ""; return; }
+    msg.textContent = ""; state.income = v; save(); render(); refresh();
+  };
+  card.appendChild(el("div", { className: "field" },
+    el("label", { text: "Monthly income (RM)" }), incomeI));
+
+  state.commitments.forEach((c) => {
+    const nameI = el("input", { type: "text", value: c.name });
+    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(c.amount) });
+    const commit = () => {
+      const res = validateCommitment({ name: nameI.value, amount: amtI.value }, c.id);
+      if (!res.ok) { msg.textContent = res.message; nameI.value = c.name; amtI.value = String(c.amount); return; }
+      msg.textContent = "";
+      c.name = nameI.value.trim(); c.amount = Number(amtI.value);
+      save(); render(); refresh();
+    };
+    nameI.onchange = commit; amtI.onchange = commit;
+    let armed = false, armTimer = null;
+    const del = el("button", {}, "Delete");
+    del.onclick = () => {
+      if (!armed) { armed = true; del.textContent = "Confirm";
+        armTimer = setTimeout(() => { armed = false; del.textContent = "Delete"; }, 3000); return; }
+      if (armTimer) clearTimeout(armTimer);
+      state.commitments = state.commitments.filter((x) => x.id !== c.id);
+      save(); render(); refresh();
+    };
+    card.appendChild(el("div", { className: "cat-edit" }, nameI, amtI, del));
+  });
+
+  const cName = el("input", { type: "text", placeholder: "e.g. Rent, Insurance" });
+  const cAmt = el("input", { type: "number", step: "1", min: "0", placeholder: "Amount (RM)" });
+  const cAdd = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
+  cAdd.onclick = () => {
+    const res = validateCommitment({ name: cName.value, amount: cAmt.value }, null);
+    if (!res.ok) { msg.textContent = res.message; return; }
+    msg.textContent = "";
+    state.commitments.push({ id: uid(), name: cName.value.trim(), amount: Number(cAmt.value) });
+    save(); render(); refresh();
+  };
+  card.appendChild(el("div", { className: "settings-add" }, cName, cAmt, cAdd));
+  card.appendChild(el("div", { className: "fc-note",
+    text: "Commitments are used only for the forecast. Keep logging the actual payments as expenses if you want them in your categories." }));
+
   card.appendChild(msg);
 
-  card.appendChild(el("div", { className: "modal-actions" },
+  // ---- Backup ----
+  card.appendChild(el("div", { className: "set-h", text: "Backup" }));
+  const dl = el("button", { className: "btn", style: "width:100%;margin-bottom:8px;",
+    onClick: exportBackup }, "Download backup");
+  card.appendChild(dl);
+
+  const fileInput = el("input", { type: "file", accept: "application/json,.json" });
+  const restoreArea = el("div", {});
+  const setRestoreNote = (t) => { restoreArea.textContent = ""; restoreArea.appendChild(el("div", { className: "fc-note", text: t })); };
+  setRestoreNote("Restoring replaces all current data.");
+  fileInput.onchange = () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    restoreArea.textContent = "";
+    restoreArea.appendChild(el("div", { className: "fc-note", text: `Replace all current data with "${file.name}"?` }));
+    const errLine = el("div", { className: "settings-msg" });
+    restoreArea.appendChild(errLine);
+    restoreArea.appendChild(el("div", { className: "modal-actions", style: "margin-top:8px;" },
+      el("button", { className: "btn", onClick: () => { fileInput.value = ""; refresh(); } }, "Cancel"),
+      el("button", { className: "btn danger", onClick: () => {
+        importBackup(file, () => { closeModal(); openSettings(); }, (err) => { errLine.textContent = err; });
+      } }, "Replace all data")));
+  };
+  card.appendChild(el("div", { className: "field" },
+    el("label", { text: "Restore from a backup file" }), fileInput));
+  card.appendChild(restoreArea);
+
+  card.appendChild(el("div", { className: "modal-actions", style: "margin-top:14px;" },
     el("button", { className: "btn", onClick: closeModal }, "Done")));
 }
 
@@ -597,6 +842,12 @@ load();
 selectedMonth = monthKey(new Date());
 if (!storageAvailable) document.getElementById("storage-notice").hidden = false;
 render();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
