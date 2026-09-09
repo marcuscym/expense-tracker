@@ -183,7 +183,7 @@ function shiftMonth(key, delta) {
 }
 
 const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const money = (n) => nf2.format(n);
+const money = (n) => "RM " + nf2.format(n);
 
 const centsOf = (n) => { const c = Math.round(Number(n) * 100); return Number.isFinite(c) ? c : 0; };
 const sumCents = (arr) => arr.reduce((t, x) => t + x, 0);
@@ -304,10 +304,10 @@ function renderSummary() {
     wrap,
     el("div", {},
       el("div", { className: "lbl", text: "Spent this month" }),
-      el("div", { className: "big", text: `$${money(fromCents(spent))}` }),
+      el("div", { className: "big", text: `${money(fromCents(spent))}` }),
       el("div", { className: "sub", text: left >= 0
-        ? `$${money(fromCents(left))} left of $${money(fromCents(budget))}`
-        : `$${money(fromCents(-left))} over $${money(fromCents(budget))}` }),
+        ? `${money(fromCents(left))} left of ${money(fromCents(budget))}`
+        : `${money(fromCents(-left))} over ${money(fromCents(budget))}` }),
     ),
   );
 }
@@ -346,7 +346,7 @@ function renderCategories() {
         el("div", { className: "row-top" },
           el("span", { className: "name", text: c.name }),
           el("span", { className: "nums" + (tone === "over" ? " over" : ""),
-            text: `$${money(fromCents(spent))} / $${money(fromCents(budget))}` }),
+            text: `${money(fromCents(spent))} / ${money(fromCents(budget))}` }),
         ),
         el("div", { className: "bar" }, barFill),
       ),
@@ -378,7 +378,7 @@ function renderRecent() {
           el("div", { className: "meta", text: `${cat ? cat.name : "Uncategorized"} · ${fmtDayShort(e.date)}` }),
         ),
       ),
-      el("div", { className: "amt", text: `$${money(fromCents(centsOf(e.amount)))}` }),
+      el("div", { className: "amt", text: `${money(fromCents(centsOf(e.amount)))}` }),
     ));
   });
   return box;
@@ -487,7 +487,7 @@ function openExpenseForm(id) {
 
   const card = el("div", {},
     el("h2", { text: editing ? "Edit expense" : "New expense" }),
-    field("Amount", amountInput),
+    field("Amount (RM)", amountInput),
     field("Category", catSelect),
     field("Date", dateInput),
     field("Description (optional)", descInput),
@@ -577,7 +577,7 @@ function openSettingsInto(card, msg) {
   });
 
   const addName = el("input", { type: "text", placeholder: "New category" });
-  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget" });
+  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget (RM)" });
   const addBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
   addBtn.onclick = () => {
     const res = validateCategory({ name: addName.value, budget: addBud.value }, null);
