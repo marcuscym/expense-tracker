@@ -124,6 +124,7 @@
              background:none; border-left:none; border-right:none; border-top:none; color:inherit; }
   .exp-row:last-child { border-bottom:none; }
   .exp-row .desc { font-size:14px; }
+  .fx-tag { margin-left:5px; font-size:10px; opacity:.75; }
   .exp-row .meta { font-size:11px; color:var(--muted); }
   .exp-row .amt { font-size:14px; font-weight:500; white-space:nowrap; }
   [hidden] { display:none !important; }
@@ -251,7 +252,7 @@
 <script>
 "use strict";
 
-const APP_VERSION = "v21 · 2026-09-09";
+const APP_VERSION = "v22 · 2026-09-10";
 const KEY = "expense-tracker-v1";
 const BACKUP_KEY = "expense-tracker-v1-backup";
 let storageAvailable = true;
@@ -349,11 +350,11 @@ try { const t = localStorage.getItem(TAB_KEY); if (t === "overview" || t === "ex
 function setTab(t) {
   activeTab = t;
   try { localStorage.setItem(TAB_KEY, t); } catch (e) {}
-  expFilter = { q: "", categoryId: null };
+  expFilter = { q: "", categoryId: null, fixed: false };
   render();
 }
 
-let expFilter = { q: "", categoryId: null };
+let expFilter = { q: "", categoryId: null, fixed: false };
 let pendingUndoTimer = null;
 let lastCategoryId = null;
 let fcCollapsed = true;
@@ -437,6 +438,8 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 const totalBudgetCents = () => sumCents(state.categories.map((c) => centsOf(c.budget)));
 const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
+const fixedSpentCents = (key) => sumCents(expensesForMonth(key).filter((e) => e.fixed).map((e) => centsOf(e.amount)));
+const everydaySpentCents = (key) => monthSpentCents(key) - fixedSpentCents(key);
 function commitmentAmount(c, key) {
   if (c.varies && c.byMonth && c.byMonth[key] != null) return c.byMonth[key];
   return c.amount;
@@ -461,7 +464,7 @@ function monthPosition(key) {
 function avgMonthlySpendCents(beforeKey) {
   let k = shiftMonth(beforeKey, -1), got = [], guard = 0;
   while (got.length < 3 && guard < 24) {
-    const c = monthSpentCents(k);
+    const c = everydaySpentCents(k);
     if (c > 0) got.push(c);
     k = shiftMonth(k, -1); guard++;
   }
@@ -471,27 +474,29 @@ function avgMonthlySpendCents(beforeKey) {
 
 function forecast(key) {
   const income = centsOf(state.income);
-  const commit = commitmentCents(key);
-  const spent = monthSpentCents(key);
+  // committed = the higher of your estimated commitments vs what you've actually paid as fixed bills
+  const commit = Math.max(commitmentCents(key), fixedSpentCents(key));
+  const spent = monthSpentCents(key);          // everything logged this month
+  const everyday = everydaySpentCents(key);    // everything except fixed bills
   const available = income - commit;
   const mp = monthPosition(key);
   let projectedEveryday, projectedFromPace;
   if (mp.pos === "past") {
-    projectedEveryday = spent; projectedFromPace = false;
-  } else if (mp.pos === "current" && mp.day > 0 && spent > 0) {
-    projectedEveryday = Math.round(spent / mp.day * mp.dim); projectedFromPace = true;
+    projectedEveryday = everyday; projectedFromPace = false;
+  } else if (mp.pos === "current" && mp.day > 0 && everyday > 0) {
+    projectedEveryday = Math.round(everyday / mp.day * mp.dim); projectedFromPace = true;
   } else {
     const avg = avgMonthlySpendCents(key);
-    projectedEveryday = avg != null ? avg : spent; projectedFromPace = false;
+    projectedEveryday = avg != null ? avg : everyday; projectedFromPace = false;
   }
   const goal = centsOf(state.savingsGoal);
-  const remainingNow = available - spent;
+  const remainingNow = available - everyday;
   const projectedLeftover = available - projectedEveryday;
   const safePerDay = mp.daysLeft > 0 ? Math.round(remainingNow / mp.daysLeft) : null;
   const spendableForGoal = remainingNow - goal;
   const perDayForGoal = mp.daysLeft > 0 ? Math.round(spendableForGoal / mp.daysLeft) : null;
   const savingsRate = income > 0 ? projectedLeftover / income : null;
-  return { income, commit, spent, available, goal, mp, projectedEveryday, projectedFromPace,
+  return { income, commit, spent, everyday, available, goal, mp, projectedEveryday, projectedFromPace,
     remainingNow, projectedLeftover, spendableForGoal, perDayForGoal, safePerDay, savingsRate };
 }
 
@@ -739,8 +744,8 @@ function renderSummary() {
 
   const f = forecast(selectedMonth);
   const denom = Math.max(1, f.available - f.goal);
-  const usedPct = clamp01(f.spent / denom);
-  const tone = f.spent > denom ? "over" : (f.spent >= denom * 0.8 ? "warn" : "normal");
+  const usedPct = clamp01(f.everyday / denom);
+  const tone = f.everyday > denom ? "over" : (f.everyday >= denom * 0.8 ? "warn" : "normal");
 
   const headlineCents = f.mp.pos === "current"
     ? (f.goal > 0 ? f.spendableForGoal : f.remainingNow)
@@ -759,7 +764,7 @@ function renderSummary() {
       ? `≈ ${money(fromCents(f.safePerDay))}/day for ${f.mp.daysLeft} more day${f.mp.daysLeft === 1 ? "" : "s"}`
       : "nothing left for the rest of the month";
   } else {
-    sub = `${mName} · spent ${money(fromCents(f.spent))}`;
+    sub = `${mName} · everyday ${money(fromCents(f.everyday))}`;
   }
 
   const wrap = el("div", { className: "ring-wrap" });
@@ -838,14 +843,20 @@ function renderForecast() {
     el("span", { className: "v fc-big " + (cents >= 0 ? "good" : "bad"), text: signed(cents) }));
 
   card.appendChild(row("Income", money(fromCents(f.income))));
-  card.appendChild(row("Commitments", "− " + money(fromCents(f.commit)), true));
+  const fixedPaid = fixedSpentCents(selectedMonth);
+  card.appendChild(row("Bills & commitments", "− " + money(fromCents(f.commit)), true));
+  if (fixedPaid > 0) {
+    card.appendChild(el("div", { className: "fc-note", style: "margin:2px 0 0;",
+      text: `Includes ${money(fromCents(fixedPaid))} of fixed bills you've logged` +
+        (f.commit > fixedPaid ? `; the rest is your estimate.` : `.`) }));
+  }
 
   const note = (t) => card.appendChild(el("div", { className: "fc-note", text: t }));
   const daysLeftTxt = `${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"} left`;
   const hasGoal = f.goal > 0;
 
   if (f.mp.pos === "past") {
-    card.appendChild(row("Everyday spending", "− " + money(fromCents(f.spent)), true));
+    card.appendChild(row("Everyday spending", "− " + money(fromCents(f.everyday)), true));
     card.appendChild(bigRow("Left over", f.projectedLeftover));
     if (hasGoal) {
       const diff = f.projectedLeftover - f.goal;
@@ -859,7 +870,7 @@ function renderForecast() {
     note("Spending estimated from your recent monthly average.");
     if (hasGoal) note(`To save ${money(fromCents(f.goal))}, keep everyday spending under ${money(fromCents(f.available - f.goal))} this month.`);
   } else {
-    card.appendChild(row("Spent so far", "− " + money(fromCents(f.spent)), true));
+    card.appendChild(row("Everyday so far", "− " + money(fromCents(f.everyday)), true));
     if (hasGoal) card.appendChild(row("Savings goal", "− " + money(fromCents(f.goal)), true));
     card.appendChild(bigRow(hasGoal ? "Left to spend this month" : "Money left this month",
       hasGoal ? f.spendableForGoal : f.remainingNow));
@@ -952,13 +963,13 @@ function expenseRowInner(e, showDayInMeta) {
     dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
   }
   const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
-  const meta = (cat ? cat.name : "Uncategorized") + (showDayInMeta ? ` · ${fmtDayShort(e.date)}` : "");
+  const meta = (cat ? cat.name : "Uncategorized") + (showDayInMeta ? ` · ${fmtDayShort(e.date)}` : "") + (e.fixed ? " · fixed" : "");
   return el("button", { className: "exp-row", "data-id": e.id,
     onClick: () => openEdit(e.id) },
     el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px;" },
       dot,
       el("div", {},
-        el("div", { className: "desc", text: label }),
+        el("div", { className: "desc" }, label, e.fixed ? el("span", { className: "fx-tag", text: "📌" }) : null),
         el("div", { className: "meta", text: meta }),
       ),
     ),
@@ -1065,9 +1076,11 @@ function renderExpensesTab() {
 
   const chipRow = el("div", { className: "chips" });
   const mkChip = (label, id) => el("button", {
-    className: "chip" + (expFilter.categoryId === id ? " active" : ""),
-    onClick: () => { expFilter.categoryId = id; render(); } }, label);
+    className: "chip" + (!expFilter.fixed && expFilter.categoryId === id ? " active" : ""),
+    onClick: () => { expFilter.categoryId = id; expFilter.fixed = false; render(); } }, label);
   chipRow.appendChild(mkChip("All", null));
+  chipRow.appendChild(el("button", { className: "chip" + (expFilter.fixed ? " active" : ""),
+    onClick: () => { expFilter.fixed = !expFilter.fixed; expFilter.categoryId = null; render(); } }, "📌 Fixed"));
   state.categories.forEach((c) => chipRow.appendChild(mkChip(c.name, c.id)));
   box.appendChild(chipRow);
 
@@ -1090,9 +1103,10 @@ function renderExpensesTab() {
     listHost.textContent = "";
     let list = rows.filter((e) => expenseMatches(e, expFilter.q));
     if (expFilter.categoryId) list = list.filter((e) => e.categoryId === expFilter.categoryId);
+    if (expFilter.fixed) list = list.filter((e) => e.fixed);
     if (list.length === 0) {
       listHost.appendChild(el("div", { className: "empty",
-        text: (expFilter.q || expFilter.categoryId) ? "No matching expenses." : `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
+        text: (expFilter.q || expFilter.categoryId || expFilter.fixed) ? "No matching expenses." : `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
       return;
     }
     let curDate = null, group = null, dayCents = 0, dayTotalEl = null;
@@ -1189,6 +1203,8 @@ function openExpenseForm(id, preset) {
     }));
   const dateInput = el("input", { type: "date", value: vals.date });
   const descInput = el("input", { type: "text", value: vals.description, maxlength: "80" });
+  const fixedBox = el("input", { type: "checkbox" });
+  fixedBox.checked = editing ? !!editing.fixed : (preset ? !!preset.fixed : false);
 
   const errBox = el("div", { className: "err" });
   const fieldEls = { amount: amountInput, categoryId: catSelect, date: dateInput };
@@ -1207,9 +1223,10 @@ function openExpenseForm(id, preset) {
       editing.categoryId = data.categoryId;
       editing.date = data.date;
       editing.description = descInput.value.trim();
+      editing.fixed = fixedBox.checked;
     } else {
       state.expenses.push({ id: uid(), amount: Math.round(Number(data.amount) * 100) / 100, categoryId: data.categoryId,
-        date: data.date, description: descInput.value.trim() });
+        date: data.date, description: descInput.value.trim(), fixed: fixedBox.checked });
     }
     lastCategoryId = data.categoryId;
     save(); closeModal(); render();
@@ -1230,6 +1247,10 @@ function openExpenseForm(id, preset) {
     field("Category", catSelect),
     field("Date", dateInput),
     field("Description (optional)", descInput),
+    el("label", { className: "vary-lbl", style: "margin:2px 0 10px;" }, fixedBox,
+      el("span", {}, el("b", { style: "font-weight:500;", text: "Fixed bill / commitment" }),
+        el("span", { className: "smd", style: "display:block;font-size:12px;color:var(--muted);",
+          text: "Rent, insurance, loan — counted once toward commitments, not everyday spending." }))),
     errBox,
     actions,
   );
@@ -1239,7 +1260,7 @@ function openExpenseForm(id, preset) {
     dupBtn.onclick = () => {
       state.expenses.push({ id: uid(), amount: editing.amount, categoryId: editing.categoryId,
         date: selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`,
-        description: editing.description || "" });
+        description: editing.description || "", fixed: !!editing.fixed });
       save(); closeModal(); render(); toast("Duplicated");
     };
     const delBtn = el("button", { className: "btn danger" }, "Delete");
