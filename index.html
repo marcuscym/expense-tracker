@@ -13,235 +13,144 @@
 <title>Expenses</title>
 <style>
   :root {
-    --accent: #26215C; --accent-ink: #ffffff;
-    --bg: #f6f6f8; --card: #ffffff; --text: #1a1a1a; --muted: #6b6b72;
-    --line: rgba(0,0,0,0.08); --track: #ececf0;
-    --ok: #1D9E75; --warn: #EF9F27; --over: #E24B4A; --danger: #A32D2D;
-    --radius: 14px;
+    --accent:#26215C; --accent-ink:#fff;
+    --bg:#f6f6f8; --card:#fff; --text:#1a1a1a; --muted:#6b6b72;
+    --line:rgba(0,0,0,0.08); --track:#ececf0; --danger:#A32D2D; --over:#E24B4A;
+    --radius:12px;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --accent: #2f296e; --bg: #121216; --card: #1c1c22; --text: #f2f2f4;
-      --muted: #9a9aa2; --line: rgba(255,255,255,0.10); --track: #2a2a32;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-         background: var(--bg); color: var(--text); }
-  #app { max-width: 420px; margin: 0 auto; padding: 12px 14px calc(130px + env(safe-area-inset-bottom)); }
-  button { font: inherit; cursor: pointer; }
+  @media (prefers-color-scheme:dark){ :root{
+    --accent:#2f296e; --bg:#121216; --card:#1c1c22; --text:#f2f2f4;
+    --muted:#9a9aa2; --line:rgba(255,255,255,0.10); --track:#2a2a32;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0; font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg); color:var(--text)}
+  button{font:inherit; cursor:pointer}
+  #app{max-width:420px; margin:0 auto; padding:12px 14px calc(120px + env(safe-area-inset-bottom))}
+  [hidden]{display:none !important}
+  .notice{background:#EF9F27; color:#412402; border-radius:var(--radius); padding:8px 12px; font-size:13px; margin-bottom:10px}
 
-  .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:9;
-            display:flex; justify-content:center; gap:4px;
-            background:var(--card); border-top:1px solid var(--line);
-            padding:6px 8px calc(6px + env(safe-area-inset-bottom)); }
-  .tabbar button { flex:1; max-width:140px; background:none; border:none; color:var(--muted);
-                   font-size:11px; font-weight:500; display:flex; flex-direction:column; align-items:center;
-                   gap:2px; padding:6px 0; border-radius:10px; }
-  .tabbar button .ic { font-size:19px; line-height:1; }
-  .tabbar button.active { color:var(--accent); }
-  @media (prefers-color-scheme: dark) { .tabbar button.active { color:#CECBF6; } }
-  .fab { position:fixed; right:calc(50% - 210px + 16px); bottom:calc(74px + env(safe-area-inset-bottom));
-         width:52px; height:52px; border-radius:50%; border:none; z-index:9;
-         background:var(--accent); color:var(--accent-ink); font-size:26px; line-height:52px;
-         box-shadow:0 4px 14px rgba(0,0,0,0.25); }
-  @media (max-width:452px){ .fab { right:16px; } }
-  #toasts { position:fixed; left:0; right:0; bottom:calc(80px + env(safe-area-inset-bottom));
-            z-index:11; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
-  .toast { pointer-events:auto; background:var(--text); color:var(--bg); font-size:13px; font-weight:500;
-           border-radius:999px; padding:10px 16px; display:flex; align-items:center; gap:12px;
-           max-width:calc(100vw - 32px); box-shadow:0 4px 14px rgba(0,0,0,0.25); }
-  .toast button { background:none; border:none; color:#9db8ff; font-weight:600; font-size:13px; padding:0; }
+  .hdr{display:flex; align-items:center; justify-content:space-between; padding:6px 2px 12px}
+  .hdr .month{display:flex; align-items:center; gap:12px}
+  .hdr .month b{font-weight:500; font-size:16px}
+  .iconbtn{width:44px; height:44px; min-width:44px; border-radius:50%; border:1px solid var(--line);
+           background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; font-size:16px}
 
-  .search { width:100%; font:inherit; padding:10px 12px; border-radius:10px; margin-bottom:10px;
-            border:1px solid var(--line); background:var(--card); color:var(--text); min-height:42px; }
-  .chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px;
-           -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-  .chips::-webkit-scrollbar { display:none; }
-  .chip { flex:0 0 auto; font-size:12px; font-weight:500; padding:7px 12px; border-radius:999px;
-          border:1px solid var(--line); background:var(--card); color:var(--muted); white-space:nowrap; }
-  .chip.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
-  .day-head { display:flex; justify-content:space-between; align-items:baseline;
-              font-size:12px; color:var(--muted); font-weight:500; margin:16px 2px 4px; }
-  .quick-add { display:flex; gap:6px; margin-top:8px; }
-  .quick-add .chip { flex:1; text-align:center; }
-  .quick-bar-wrap { margin:2px 0 12px; }
-  .qb-nudge { font-size:12px; color:var(--muted); margin:0 2px 6px; }
-  .quick-bar { margin-bottom:0; padding-bottom:2px; }
-  .qchip { background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:500; padding:9px 14px; }
-  .rec-prompt { border:1px dashed var(--border-strong,var(--line)); border-radius:14px; padding:12px 14px; margin-bottom:14px; }
-  .rec-prompt .rp-h { font-size:12px; color:var(--muted); font-weight:500; margin-bottom:8px; }
-  .rec-prompt .rp-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; }
-  .rec-prompt .rp-row .rp-add { border:1px solid var(--accent); color:var(--accent); background:none;
-                                border-radius:8px; padding:5px 12px; font-size:13px; font-weight:600; min-height:36px; }
-  @media (prefers-color-scheme: dark){ .rec-prompt .rp-row .rp-add { border-color:#CECBF6; color:#CECBF6; } }
+  .hero{background:var(--accent); color:var(--accent-ink); border-radius:18px; padding:20px; margin-bottom:16px}
+  .hero .lbl{font-size:12px; opacity:.75}
+  .hero .big{font-size:30px; font-weight:500; margin:3px 0 4px}
+  .hero .sub{font-size:12px; opacity:.85}
 
-  .swipe-wrap { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
-  .swipe-wrap:last-child { border-bottom:none; }
-  .swipe-actions { position:absolute; top:0; right:0; bottom:0; display:flex; }
-  .swipe-actions button { border:none; color:#fff; font-size:13px; font-weight:600; width:70px; }
-  .swipe-actions .swipe-edit { background:#378ADD; }
-  .swipe-actions .swipe-del { background:var(--over); }
-  .exp-row.swipe-inner { position:relative; background:var(--bg); touch-action:pan-y;
-                         will-change:transform; padding-left:6px; padding-right:6px; }
-  .notice { background: var(--warn); color: #412402; border-radius: var(--radius);
-            padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
-  .hdr { display:flex; align-items:center; justify-content:space-between; padding:6px 2px 12px; }
-  .hdr .month { display:flex; align-items:center; gap:12px; }
-  .hdr .month b { font-weight:500; font-size:16px; }
-  .iconbtn { width:44px; height:44px; min-width:44px; border-radius:50%; border:1px solid var(--line);
-             background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; font-size:16px; }
-  .summary { background:var(--accent); color:var(--accent-ink); border-radius:20px; padding:20px;
-             display:flex; align-items:center; gap:18px; margin-bottom:16px; }
-  .summary .lbl { font-size:12px; opacity:.75; }
-  .summary .big { font-size:26px; font-weight:500; margin:2px 0 4px; }
-  .summary .big.neg { color:#F0997B; }
-  .summary .sub { font-size:12px; opacity:.9; line-height:1.45; }
-  .summary-plain { display:block; }
-  .summary-link { background:none; border:none; color:#CECBF6; font-size:12px; font-weight:500; padding:6px 0 0; }
-  .ring-wrap { position:relative; width:92px; height:92px; flex:0 0 92px; }
-  .ring-wrap .pct { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .ring-wrap .pct b { font-size:19px; font-weight:500; }
-  .ring-wrap .pct span { font-size:10px; opacity:.8; }
-  .sec-title { font-size:13px; font-weight:500; color:var(--muted); margin:6px 2px 8px; }
-  .empty { color:var(--muted); font-size:14px; padding:8px 2px 16px; }
-  .cat-row { display:flex; align-items:center; gap:12px; padding:10px 4px; }
-  .tile { width:34px; height:34px; min-width:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; }
-  .emoji-dot { width:20px; text-align:center; flex:0 0 20px; font-size:15px; }
-  .dot { width:8px; height:8px; border-radius:99px; flex:0 0 8px; }
-  .grow { flex:1; min-width:0; }
-  .row-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
-  .row-top .name { font-size:14px; font-weight:500; }
-  .row-top .nums { font-size:12px; color:var(--muted); }
-  .row-top .nums.over { color:var(--over); }
-  .bar { height:6px; background:var(--track); border-radius:99px; margin-top:6px; overflow:hidden; }
-  .bar > i { display:block; height:100%; border-radius:99px; }
-  .bar > i.normal { background:var(--ok); }
-  .bar > i.warn { background:var(--warn); }
-  .bar > i.over { background:var(--over); }
-  .exp-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
-             padding:10px 2px; border-bottom:1px solid var(--line); width:100%; text-align:left;
-             background:none; border-left:none; border-right:none; border-top:none; color:inherit; }
-  .exp-row:last-child { border-bottom:none; }
-  .exp-row .desc { font-size:14px; }
-  .fx-tag { margin-left:5px; font-size:10px; opacity:.75; }
-  .exp-row .meta { font-size:11px; color:var(--muted); }
-  .exp-row .amt { font-size:14px; font-weight:500; white-space:nowrap; }
-  [hidden] { display:none !important; }
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex;
-                   align-items:flex-end; justify-content:center; z-index:10; overflow-y:auto; }
-  .modal-card { background:var(--card); color:var(--text); width:100%; max-width:420px;
-                border-radius:18px 18px 0 0; padding:18px 16px 22px;
-                max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-  @media (min-width:480px){ .modal-overlay{ align-items:center; } .modal-card{ border-radius:18px; } }
-  .modal-card h2 { font-size:16px; font-weight:500; margin:0 0 12px; }
-  .field { margin-bottom:12px; }
-  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
-  .field input, .field select {
-    width:100%; font:inherit; padding:10px 12px; border-radius:10px;
-    border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px;
-  }
-  .field .err { color:var(--danger); font-size:12px; margin-top:4px; }
-  .modal-card .err { color:var(--danger); font-size:12px; margin:2px 0 8px; }
-  .modal-actions { display:flex; gap:10px; margin-top:6px; }
-  .btn { flex:1; min-height:46px; border-radius:12px; border:1px solid var(--line);
-         background:var(--card); color:var(--text); font-weight:500; }
-  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
-  .btn.danger { background:none; color:var(--danger); border-color:var(--danger); }
-  .linkbtn { background:none; border:none; color:var(--muted); text-decoration:underline; padding:8px 0; }
-  .cat-edit { display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
-  .cat-edit input[type=text] { flex:2; min-width:0; }
-  .cat-edit input[type=number] { flex:1; min-width:0; width:90px; }
-  .cat-edit input { font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
-                    background:var(--bg); color:var(--text); min-height:44px; }
-  .cat-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
-                     background:none; color:var(--danger); padding:0 10px; white-space:nowrap; }
-  .rec-edit { border-bottom:1px solid var(--line); padding:10px 0; }
-  .rec-edit .r { display:flex; gap:8px; align-items:center; }
-  .rec-edit .r + .r { margin-top:8px; }
-  .rec-edit input, .rec-edit select { font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
-                    background:var(--bg); color:var(--text); min-height:44px; min-width:0; flex:1; }
-  .rec-edit .day-lbl { font-size:12px; color:var(--muted); flex:0 0 auto; }
-  .rec-edit button { min-height:44px; border-radius:9px; border:1px solid var(--danger);
-                     background:none; color:var(--danger); padding:0 10px; white-space:nowrap; flex:0 0 auto; }
-  .rec-edit .btn.primary { border-color:transparent; color:var(--accent-ink); }
-  .rec-edit .reorder { min-height:44px; min-width:38px; flex:0 0 auto; padding:0;
-                       border:1px solid var(--line); border-radius:9px; background:var(--card); color:var(--text); font-size:15px; }
-  .rec-edit .reorder[disabled] { opacity:.35; }
-  .reassign { padding:8px 0 12px; border-bottom:1px solid var(--line); }
-  .reassign .r { display:flex; gap:8px; align-items:center; }
-  .reassign select { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
-                     border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
-  .settings-add { display:flex; gap:8px; margin-top:14px; }
-  .settings-add input { flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px;
-                        border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px; }
-  .settings-add button { flex:0 0 auto; }
-  .settings-msg { color:var(--danger); font-size:12px; margin-top:4px; }
-  .set-h { font-size:13px; font-weight:500; color:var(--muted); margin:20px 0 8px; }
-  .set-h:first-child { margin-top:4px; }
-  .set-menu { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%;
-              background:var(--bg); border:1px solid var(--line); border-radius:12px;
-              padding:12px 14px; margin-bottom:8px; text-align:left; color:var(--text); min-height:56px; }
-  .set-menu b { display:block; font-size:15px; font-weight:500; }
-  .set-menu .smd { display:block; font-size:12px; color:var(--muted); margin-top:2px; }
-  .set-menu .smc { font-size:16px; color:var(--muted); flex:0 0 auto; }
-  .set-back { background:none; border:none; color:var(--muted); font-size:13px; padding:2px 0 6px; }
-  .fc { border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; }
-  .fc h3 { margin:0 0 12px; font-size:13px; font-weight:500; color:var(--muted); }
-  .fc-row { display:flex; justify-content:space-between; align-items:baseline; padding:5px 0; font-size:14px; }
-  .fc-row .v { font-weight:500; white-space:nowrap; }
-  .fc-row .v.neg { color:var(--muted); }
-  .fc-row.total { border-top:1px solid var(--line); margin-top:6px; padding-top:10px; }
-  .fc-row.total .k { font-weight:500; }
-  .fc-big { font-size:22px; font-weight:500; }
-  .fc-big.good { color:var(--ok); }
-  .fc-big.bad { color:var(--over); }
-  .fc-note { font-size:12px; color:var(--muted); margin-top:8px; }
-  .fc-sub { font-size:12px; color:var(--muted); margin:14px 0 2px; }
-  .fc-cta { margin-bottom:16px; }
-  .fc-toggle { display:flex; align-items:center; justify-content:space-between; width:100%;
-               background:none; border:none; padding:6px 2px 8px; color:var(--muted); }
-  .fc-toggle .t { font-size:13px; font-weight:500; }
-  .fc-toggle .chev { font-size:12px; transition:transform .15s; }
-  .vc-row { display:flex; align-items:center; gap:8px; padding:6px 0; }
-  .vc-nm { flex:1; min-width:0; font-size:13px; }
-  .vc-in { width:82px; font:inherit; padding:6px 8px; border-radius:8px; border:1px solid var(--line);
-           background:var(--bg); color:var(--text); min-height:36px; text-align:right; }
-  .vc-step { min-height:36px; min-width:40px; border-radius:8px; border:1px solid var(--line);
-             background:var(--card); color:var(--text); font-weight:600; }
-  .bills-card { border:1px solid var(--line); border-radius:16px; padding:6px 14px; margin-bottom:16px; }
-  .bills-card .vc-row.est .vc-nm { color:var(--text); }
-  .vc-tag { display:inline-block; margin-left:6px; font-size:10px; font-weight:500; color:#854F0B;
-            background:#FAEEDA; border-radius:99px; padding:1px 7px; vertical-align:1px; }
-  @media (prefers-color-scheme: dark){ .vc-tag { color:#FAC775; background:#412402; } }
-  .vary-lbl { display:flex; align-items:center; gap:8px; flex:1; font-size:13px; color:var(--text); }
-  .vary-lbl input { min-height:0; }
-  .fc-toggle .chev.open { transform:rotate(90deg); }
-  .fc-collapsed { border:1px solid var(--line); border-radius:14px; padding:12px 14px;
-                  display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
-  .fc-collapsed .v { font-size:17px; font-weight:500; }
-  .fc-collapsed .v.good { color:var(--ok); } .fc-collapsed .v.bad { color:var(--over); }
+  .sec-title{font-size:13px; font-weight:500; color:var(--muted); margin:14px 2px 8px; display:flex; justify-content:space-between; align-items:baseline}
+  .sec-title .link{color:#8b83e0; font-weight:500; background:none; border:none; padding:0}
+  @media (prefers-color-scheme:dark){ .sec-title .link{color:#CECBF6} }
+  .empty{color:var(--muted); font-size:14px; padding:8px 2px 16px}
 
-  .tchart-wrap { position:relative; border:1px solid var(--line); border-radius:16px; padding:14px 14px 10px; margin-bottom:18px; }
-  .tchart { display:flex; align-items:flex-end; gap:6px; height:150px; }
-  .tbar { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px; height:100%; }
-  .tbar .col { width:64%; max-width:30px; background:var(--accent); border-radius:5px 5px 0 0; min-height:3px; }
-  .tbar.cur .col { background:#7F77DD; }
-  .tbar .col.over { background:var(--over); }
-  .tbar .lbl { font-size:10px; color:var(--muted); white-space:nowrap; }
-  .tline { position:absolute; left:14px; right:14px; border-top:1px dashed var(--over); }
-  .tline .cap { position:absolute; right:0; top:-16px; font-size:10px; color:var(--over); background:var(--bg); padding:0 4px; }
-  .bk-row { display:flex; align-items:center; gap:10px; padding:9px 2px; }
-  .bk-row .nm { flex:1; min-width:0; font-size:14px; }
-  .bk-row .pc { font-size:12px; color:var(--muted); width:40px; text-align:right; }
-  .bk-row .am { font-size:13px; font-weight:500; width:92px; text-align:right; white-space:nowrap; }
-  .bk-bar { height:5px; background:var(--track); border-radius:99px; overflow:hidden; margin:2px 2px 0; }
-  .bk-bar > i { display:block; height:100%; border-radius:99px; }
+  .cat-row{display:flex; align-items:center; gap:12px; padding:9px 2px}
+  .tile{width:34px; height:34px; min-width:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px}
+  .dot{width:8px; height:8px; border-radius:99px; flex:0 0 8px}
+  .grow{flex:1; min-width:0}
+  .cat-row .nm{font-size:14px; font-weight:500}
+  .cat-row .rt{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+  .cat-row .am{font-size:13px; color:var(--muted); white-space:nowrap}
+  .cbar{height:5px; background:var(--track); border-radius:99px; margin-top:6px; overflow:hidden}
+  .cbar>i{display:block; height:100%; border-radius:99px}
+
+  .emoji-dot{width:20px; text-align:center; flex:0 0 20px; font-size:15px}
+  .exp-row{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+           padding:10px 6px; text-align:left; background:var(--bg); color:inherit; border:none; position:relative}
+  .exp-row .desc{font-size:14px}
+  .exp-row .meta{font-size:11px; color:var(--muted)}
+  .exp-row .amt{font-size:14px; font-weight:500; white-space:nowrap}
+
+  .swipe-wrap{position:relative; overflow:hidden; border-bottom:1px solid var(--line)}
+  .swipe-wrap:last-child{border-bottom:none}
+  .swipe-actions{position:absolute; top:0; right:0; bottom:0; display:flex}
+  .swipe-actions button{border:none; color:#fff; font-size:13px; font-weight:600; width:70px}
+  .swipe-actions .e{background:#378ADD}
+  .swipe-actions .d{background:var(--over)}
+  .exp-row.swipe-inner{touch-action:pan-y; will-change:transform}
+
+  .day-head{display:flex; justify-content:space-between; align-items:baseline; font-size:12px; color:var(--muted); font-weight:500; margin:16px 2px 4px}
+
+  .quick-wrap{margin:2px 0 12px}
+  .qb-nudge{font-size:12px; color:var(--muted); margin:0 2px 6px}
+  .chips{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto; font-size:12px; font-weight:500; padding:8px 13px; border-radius:999px;
+        border:1px solid var(--line); background:var(--card); color:var(--muted); white-space:nowrap}
+  .chip.active{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+  .qchip{background:var(--accent); color:var(--accent-ink); border-color:transparent; padding:9px 14px}
+
+  .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:9; display:flex; justify-content:center; gap:4px;
+          background:var(--card); border-top:1px solid var(--line); padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+  .tabbar button{flex:1; max-width:140px; background:none; border:none; color:var(--muted); font-size:11px; font-weight:500;
+                 display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0; border-radius:10px}
+  .tabbar button .ic{font-size:19px; line-height:1}
+  .tabbar button.active{color:var(--accent)}
+  @media (prefers-color-scheme:dark){ .tabbar button.active{color:#CECBF6} }
+  .fab{position:fixed; right:calc(50% - 210px + 16px); bottom:calc(74px + env(safe-area-inset-bottom));
+       width:52px; height:52px; border-radius:50%; border:none; z-index:9;
+       background:var(--accent); color:var(--accent-ink); font-size:26px; box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+  @media (max-width:452px){ .fab{right:16px} }
+
+  #toasts{position:fixed; left:0; right:0; bottom:calc(80px + env(safe-area-inset-bottom)); z-index:11;
+          display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none}
+  .toast{pointer-events:auto; background:var(--text); color:var(--bg); font-size:13px; font-weight:500;
+         border-radius:999px; padding:10px 16px; display:flex; align-items:center; gap:12px;
+         max-width:calc(100vw - 32px); box-shadow:0 4px 14px rgba(0,0,0,0.25)}
+  .toast button{background:none; border:none; color:#9db8ff; font-weight:600; font-size:13px; padding:0}
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:flex-end;
+                 justify-content:center; z-index:10; overflow-y:auto}
+  .modal-card{background:var(--card); color:var(--text); width:100%; max-width:420px; border-radius:18px 18px 0 0;
+              padding:18px 16px 22px; max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch}
+  @media (min-width:480px){ .modal-overlay{align-items:center} .modal-card{border-radius:18px} }
+  .modal-card h2{font-size:16px; font-weight:500; margin:0 0 12px}
+  .field{margin-bottom:12px}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px}
+  .field input,.field select{width:100%; font:inherit; padding:10px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--bg); color:var(--text); min-height:44px}
+  .err{color:var(--danger); font-size:12px; margin:2px 0 8px}
+  .modal-actions{display:flex; gap:10px; margin-top:6px}
+  .btn{flex:1; min-height:46px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font-weight:500}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+  .btn.danger{background:none; color:var(--danger); border-color:var(--danger)}
+  .quick-add{display:flex; gap:6px; margin-top:8px}
+  .quick-add .chip{flex:1; text-align:center}
+
+  .set-h{font-size:13px; font-weight:500; color:var(--muted); margin:22px 0 8px}
+  .row-edit{border-bottom:1px solid var(--line); padding:10px 0}
+  .row-edit .r{display:flex; gap:8px; align-items:center}
+  .row-edit .r + .r{margin-top:8px}
+  .row-edit input,.row-edit select{font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
+    background:var(--bg); color:var(--text); min-height:44px; min-width:0; flex:1}
+  .row-edit .em{flex:0 0 46px; width:46px; text-align:center}
+  .row-edit .am{flex:0 0 90px; width:90px}
+  .row-edit .reorder{flex:0 0 auto; min-width:38px; min-height:44px; padding:0; border-radius:9px;
+    border:1px solid var(--line); background:var(--card); color:var(--text); font-size:15px}
+  .row-edit .reorder[disabled]{opacity:.35}
+  .row-edit .del{flex:0 0 auto; min-height:44px; border-radius:9px; border:1px solid var(--danger);
+    background:none; color:var(--danger); padding:0 12px; white-space:nowrap}
+  .add-row{display:flex; gap:8px; margin-top:14px}
+  .add-row input{flex:1; min-width:0; font:inherit; padding:8px 10px; border-radius:9px; border:1px solid var(--line);
+    background:var(--bg); color:var(--text); min-height:44px}
+  .add-row button{flex:0 0 auto}
+  .reassign{padding:8px 0 12px; border-bottom:1px solid var(--line)}
+  .set-msg{color:var(--danger); font-size:12px; margin-top:6px}
+  .set-ver{text-align:center; font-size:12px; color:var(--muted); margin-top:18px}
+
+  .tchart-wrap{border:1px solid var(--line); border-radius:16px; padding:14px 14px 10px; margin-bottom:16px}
+  .tchart{display:flex; align-items:flex-end; gap:6px; height:150px}
+  .tbar{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px; height:100%; background:none; border:none; color:inherit}
+  .tbar .col{width:64%; max-width:30px; background:var(--accent); border-radius:5px 5px 0 0; min-height:3px}
+  .tbar.cur .col{background:#7F77DD}
+  .tbar .lbl{font-size:10px; color:var(--muted); white-space:nowrap}
 </style>
 </head>
 <body>
 <div id="app">
-  <div id="storage-notice" class="notice" hidden>Data won't be saved in this browser session.</div>
+  <div id="storage-notice" class="notice" hidden>Changes won't be saved in this browser.</div>
   <div id="content"></div>
 </div>
 <div id="chrome"></div>
@@ -252,9 +161,10 @@
 <script>
 "use strict";
 
-const APP_VERSION = "v22 · 2026-09-10";
+const APP_VERSION = "v23 · 2026-09-10";
 const KEY = "expense-tracker-v1";
 const BACKUP_KEY = "expense-tracker-v1-backup";
+const TAB_KEY = "expense-tracker-tab";
 let storageAvailable = true;
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -264,20 +174,47 @@ function DEFAULT_STATE() {
   return {
     version: 1,
     categories: [
-      { id: uid(), name: "Food", budget: 700, emoji: "🍔" },
-      { id: uid(), name: "Transport", budget: 300, emoji: "🚗" },
-      { id: uid(), name: "Housing", budget: 1600, emoji: "🏠" },
+      { id: uid(), name: "Food", emoji: "🍔" },
+      { id: uid(), name: "Transport", emoji: "🚗" },
+      { id: uid(), name: "Bills", emoji: "🧾" },
     ],
     expenses: [],
-    income: 0,
-    commitments: [],
-    savingsGoal: 0,
-    recurring: [],
     quick: [],
   };
 }
 
 let state = DEFAULT_STATE();
+
+function catInList(list, id) { return list.find((c) => c.id === id); }
+
+function normalize(obj) {
+  const s = DEFAULT_STATE();
+  const okCat = (c) => c && typeof c.id === "string" && typeof c.name === "string";
+  const okExp = (e) => e && typeof e.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "") && Number.isFinite(Number(e.amount));
+  if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat)
+    .map((c) => ({ id: c.id, name: String(c.name), emoji: typeof c.emoji === "string" ? c.emoji.slice(0, 4) : "" }));
+  if (obj && Array.isArray(obj.expenses)) s.expenses = obj.expenses.filter(okExp)
+    .map((e) => ({ id: e.id, amount: Number(e.amount), categoryId: typeof e.categoryId === "string" ? e.categoryId : "",
+      date: e.date, description: typeof e.description === "string" ? e.description : "" }));
+
+  const quick = [];
+  const seen = new Set();
+  const addQuick = (label, amount, categoryId) => {
+    const l = String(label || "").trim();
+    const a = Number(amount);
+    if (!l || !isFinite(a) || a <= 0 || seen.has(l.toLowerCase())) return;
+    seen.add(l.toLowerCase());
+    quick.push({ id: uid(), label: l, amount: Math.round(a * 100) / 100,
+      categoryId: catInList(s.categories, categoryId) ? categoryId : (s.categories[0] ? s.categories[0].id : "") });
+  };
+  if (obj && Array.isArray(obj.quick)) obj.quick.forEach((q) => q && addQuick(q.label || q.name, q.amount, q.categoryId));
+  if (obj && Array.isArray(obj.commitments)) obj.commitments.forEach((c) => c && addQuick(c.name, c.amount, s.categories[0] && s.categories[0].id));
+  if (obj && Array.isArray(obj.recurring)) obj.recurring.forEach((r) => r && addQuick(r.name, r.amount, r.categoryId));
+  s.quick = quick;
+
+  s.version = 1;
+  return s;
+}
 
 function load() {
   let raw = null;
@@ -288,49 +225,12 @@ function load() {
     const parsed = JSON.parse(raw);
     state = normalize(parsed);
     const badShape = !parsed || typeof parsed !== "object" || Array.isArray(parsed);
-    const rawCats = parsed && Array.isArray(parsed.categories) ? parsed.categories.length : 0;
     const rawExps = parsed && Array.isArray(parsed.expenses) ? parsed.expenses.length : 0;
-    if (badShape || state.categories.length < rawCats || state.expenses.length < rawExps) {
-      try { localStorage.setItem(BACKUP_KEY, raw); } catch (_) {}
-    }
+    if (badShape || state.expenses.length < rawExps) { try { localStorage.setItem(BACKUP_KEY, raw); } catch (_) {} }
   } catch (e) {
     try { localStorage.setItem(BACKUP_KEY, raw); } catch (_) {}
-    state = DEFAULT_STATE();
-    save();
+    state = DEFAULT_STATE(); save();
   }
-}
-
-function normalize(obj) {
-  const s = DEFAULT_STATE();
-  const okCat = (c) => c && typeof c.id === "string" && typeof c.name === "string";
-  const okExp = (e) => e && typeof e.id === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "");
-  const okCom = (c) => c && typeof c.id === "string" && typeof c.name === "string" && Number.isFinite(Number(c.amount));
-  const okRec = (r) => r && typeof r.id === "string" && typeof r.name === "string" && Number.isFinite(Number(r.amount));
-  const okQuick = (q) => q && typeof q.id === "string" && typeof (q.label || q.name) === "string" && Number.isFinite(Number(q.amount));
-  if (obj && Array.isArray(obj.categories)) s.categories = obj.categories.filter(okCat)
-    .map((c) => ({ id: c.id, name: c.name, budget: c.budget, emoji: typeof c.emoji === "string" ? c.emoji.slice(0, 4) : "" }));
-  if (obj && Array.isArray(obj.expenses))   s.expenses   = obj.expenses.filter(okExp);
-  if (obj && Array.isArray(obj.commitments)) s.commitments = obj.commitments.filter(okCom)
-    .map((c) => {
-      const byMonth = {};
-      if (c.byMonth && typeof c.byMonth === "object") {
-        for (const [k, v] of Object.entries(c.byMonth)) {
-          if (/^\d{4}-\d{2}$/.test(k) && Number.isFinite(Number(v)) && Number(v) >= 0) byMonth[k] = Number(v);
-        }
-      }
-      return { id: c.id, name: c.name, amount: Number(c.amount), varies: c.varies === true, byMonth };
-    });
-  if (obj && Array.isArray(obj.recurring)) s.recurring = obj.recurring.filter(okRec)
-    .map((r) => ({ id: r.id, name: r.name, amount: Number(r.amount),
-      categoryId: typeof r.categoryId === "string" ? r.categoryId : "",
-      day: Math.min(28, Math.max(1, parseInt(r.day, 10) || 1)) }));
-  if (obj && Array.isArray(obj.quick)) s.quick = obj.quick.filter(okQuick)
-    .map((q) => ({ id: q.id, label: q.label || q.name, amount: Number(q.amount),
-      categoryId: typeof q.categoryId === "string" ? q.categoryId : "" }));
-  if (obj && Number.isFinite(Number(obj.income)) && Number(obj.income) >= 0) s.income = Number(obj.income);
-  if (obj && Number.isFinite(Number(obj.savingsGoal)) && Number(obj.savingsGoal) >= 0) s.savingsGoal = Number(obj.savingsGoal);
-  s.version = 1;
-  return s;
 }
 
 function save() {
@@ -342,71 +242,38 @@ function save() {
   }
 }
 
+/* ---------- helpers ---------- */
 let selectedMonth;
-
-const TAB_KEY = "expense-tracker-tab";
 let activeTab = "overview";
-try { const t = localStorage.getItem(TAB_KEY); if (t === "overview" || t === "expenses" || t === "trends") activeTab = t; } catch (e) {}
-function setTab(t) {
-  activeTab = t;
-  try { localStorage.setItem(TAB_KEY, t); } catch (e) {}
-  expFilter = { q: "", categoryId: null, fixed: false };
-  render();
-}
-
-let expFilter = { q: "", categoryId: null, fixed: false };
-let pendingUndoTimer = null;
+try { const t = localStorage.getItem(TAB_KEY); if (["overview", "expenses", "trends"].includes(t)) activeTab = t; } catch (e) {}
+let expFilter = { q: "", categoryId: null };
 let lastCategoryId = null;
-let fcCollapsed = true;
-try { const v = localStorage.getItem("expense-tracker-fc-collapsed"); if (v != null) fcCollapsed = v === "1"; } catch (e) {}
-
-function toast(msg, actionLabel, actionFn) {
-  const host = document.getElementById("toasts");
-  host.textContent = "";
-  const t = el("div", { className: "toast" }, el("span", { text: msg }));
-  if (actionLabel) {
-    t.appendChild(el("button", { onClick: () => { host.textContent = ""; if (pendingUndoTimer) clearTimeout(pendingUndoTimer); actionFn(); } }, actionLabel));
-  }
-  host.appendChild(t);
-  if (pendingUndoTimer) clearTimeout(pendingUndoTimer);
-  pendingUndoTimer = setTimeout(() => { if (host.firstChild === t) host.textContent = ""; }, actionLabel ? 6000 : 2200);
-}
-
-function deleteExpenseWithUndo(id) {
-  const idx = state.expenses.findIndex((e) => e.id === id);
-  if (idx < 0) return;
-  const removed = state.expenses[idx];
-  state.expenses.splice(idx, 1);
-  save(); render();
-  toast("Expense deleted", "Undo", () => {
-    const at = Math.min(idx, state.expenses.length);
-    state.expenses.splice(at, 0, removed);
-    save(); render();
-  });
-}
+let toastTimer = null;
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const monthKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
-const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
-
-function fmtMonth(key) {
-  const [y, m] = key.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-function shiftMonth(key, delta) {
-  const [y, m] = key.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return monthKey(d);
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const fmtMonth = (key) => { const [y, m] = key.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }); };
+const monthShort = (key) => fmtMonth(key).split(" ")[0];
+function shiftMonth(key, delta) { const [y, m] = key.split("-").map(Number); return monthKey(new Date(y, m - 1 + delta, 1)); }
+function fmtDayShort(iso) { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+function dayLabel(iso) {
+  if (iso === todayISO()) return "Today";
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  if (iso === `${y.getFullYear()}-${pad2(y.getMonth() + 1)}-${pad2(y.getDate())}`) return "Yesterday";
+  const [yr, m, d] = iso.split("-").map(Number);
+  return new Date(yr, m - 1, d).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
 }
 
 const nf2 = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (n) => "RM " + nf2.format(n);
-
 const centsOf = (n) => { const c = Math.round(Number(n) * 100); return Number.isFinite(c) ? c : 0; };
-const sumCents = (arr) => arr.reduce((t, x) => t + x, 0);
+const sumCents = (a) => a.reduce((t, x) => t + x, 0);
 const fromCents = (c) => c / 100;
 
 const categoryById = (id) => state.categories.find((c) => c.id === id);
+const CAT_PALETTE = ["#EF9F27", "#E24B4A", "#1D9E75", "#378ADD", "#7F77DD", "#D4537E", "#0F6E56", "#BA7517"];
+const catColor = (i) => CAT_PALETTE[i % CAT_PALETTE.length];
 
 function expensesForMonth(key) {
   return state.expenses
@@ -415,8 +282,8 @@ function expensesForMonth(key) {
     .sort((a, b) => (a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : b.i - a.i))
     .map((x) => x.e);
 }
-
-function spentCentsByCategory(key) {
+const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
+function spentByCategory(key) {
   const m = new Map();
   for (const e of state.expenses) {
     if ((e.date || "").slice(0, 7) !== key) continue;
@@ -426,152 +293,53 @@ function spentCentsByCategory(key) {
   return m;
 }
 
-function status(spent, budget) {
-  if (!budget || budget <= 0) return spent > 0 ? "over" : "normal";
-  const p = spent / budget;
-  if (p > 1) return "over";
-  if (p >= 0.8) return "warn";
-  return "normal";
-}
-
-const clamp01 = (x) => Math.max(0, Math.min(1, x));
-
-const totalBudgetCents = () => sumCents(state.categories.map((c) => centsOf(c.budget)));
-const monthSpentCents = (key) => sumCents(expensesForMonth(key).map((e) => centsOf(e.amount)));
-const fixedSpentCents = (key) => sumCents(expensesForMonth(key).filter((e) => e.fixed).map((e) => centsOf(e.amount)));
-const everydaySpentCents = (key) => monthSpentCents(key) - fixedSpentCents(key);
-function commitmentAmount(c, key) {
-  if (c.varies && c.byMonth && c.byMonth[key] != null) return c.byMonth[key];
-  return c.amount;
-}
-const commitmentCents = (key) => sumCents(state.commitments.map((c) => centsOf(commitmentAmount(c, key || selectedMonth))));
-
-function daysInMonthOf(key) {
-  const [y, m] = key.split("-").map(Number);
-  return new Date(y, m, 0).getDate();
-}
-
-function monthPosition(key) {
-  const now = new Date();
-  const curKey = monthKey(now);
-  const dim = daysInMonthOf(key);
-  if (key < curKey) return { pos: "past", dim, day: dim, daysLeft: 0 };
-  if (key > curKey) return { pos: "future", dim, day: 0, daysLeft: dim };
-  const day = now.getDate();
-  return { pos: "current", dim, day, daysLeft: Math.max(0, dim - day) };
-}
-
-function avgMonthlySpendCents(beforeKey) {
-  let k = shiftMonth(beforeKey, -1), got = [], guard = 0;
-  while (got.length < 3 && guard < 24) {
-    const c = everydaySpentCents(k);
-    if (c > 0) got.push(c);
-    k = shiftMonth(k, -1); guard++;
-  }
-  if (!got.length) return null;
-  return Math.round(got.reduce((a, b) => a + b, 0) / got.length);
-}
-
-function forecast(key) {
-  const income = centsOf(state.income);
-  // committed = the higher of your estimated commitments vs what you've actually paid as fixed bills
-  const commit = Math.max(commitmentCents(key), fixedSpentCents(key));
-  const spent = monthSpentCents(key);          // everything logged this month
-  const everyday = everydaySpentCents(key);    // everything except fixed bills
-  const available = income - commit;
-  const mp = monthPosition(key);
-  let projectedEveryday, projectedFromPace;
-  if (mp.pos === "past") {
-    projectedEveryday = everyday; projectedFromPace = false;
-  } else if (mp.pos === "current" && mp.day > 0 && everyday > 0) {
-    projectedEveryday = Math.round(everyday / mp.day * mp.dim); projectedFromPace = true;
-  } else {
-    const avg = avgMonthlySpendCents(key);
-    projectedEveryday = avg != null ? avg : everyday; projectedFromPace = false;
-  }
-  const goal = centsOf(state.savingsGoal);
-  const remainingNow = available - everyday;
-  const projectedLeftover = available - projectedEveryday;
-  const safePerDay = mp.daysLeft > 0 ? Math.round(remainingNow / mp.daysLeft) : null;
-  const spendableForGoal = remainingNow - goal;
-  const perDayForGoal = mp.daysLeft > 0 ? Math.round(spendableForGoal / mp.daysLeft) : null;
-  const savingsRate = income > 0 ? projectedLeftover / income : null;
-  return { income, commit, spent, everyday, available, goal, mp, projectedEveryday, projectedFromPace,
-    remainingNow, projectedLeftover, spendableForGoal, perDayForGoal, safePerDay, savingsRate };
-}
-
-function recurringDate(rec, key) {
-  return `${key}-${pad2(Math.min(rec.day || 1, daysInMonthOf(key)))}`;
-}
-function unloggedRecurring(key) {
-  return state.recurring.filter((r) =>
-    !state.expenses.some((e) => e.recurringId === r.id && (e.date || "").slice(0, 7) === key));
-}
-function addRecurringToMonth(rec, key) {
-  state.expenses.push({ id: uid(), amount: rec.amount,
-    categoryId: categoryById(rec.categoryId) ? rec.categoryId : (state.categories[0] ? state.categories[0].id : ""),
-    date: recurringDate(rec, key), description: rec.name, recurringId: rec.id });
-  save(); render(); toast("Added " + rec.name);
-}
-function validateRecurring({ name, amount }, existingId) {
-  const nm = (name || "").trim();
-  if (!nm) return { ok: false, message: "Enter a name." };
-  if (state.recurring.some((r) => r.id !== existingId && r.name.toLowerCase() === nm.toLowerCase()))
-    return { ok: false, message: "That name is already used." };
-  const a = Number(amount);
-  if (amount === "" || !isFinite(a) || a <= 0) return { ok: false, message: "Amount must be greater than 0." };
-  return { ok: true };
-}
-
-function ringSvg(percent, tone) {
-  const NS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(NS, "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  svg.setAttribute("width", "92"); svg.setAttribute("height", "92");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `${Math.round(percent * 100)} percent of budget used`);
-  const track = document.createElementNS(NS, "circle");
-  track.setAttribute("cx","50"); track.setAttribute("cy","50"); track.setAttribute("r","42");
-  track.setAttribute("fill","none"); track.setAttribute("stroke","rgba(255,255,255,0.22)"); track.setAttribute("stroke-width","10");
-  const arc = document.createElementNS(NS, "circle");
-  arc.setAttribute("cx","50"); arc.setAttribute("cy","50"); arc.setAttribute("r","42");
-  arc.setAttribute("fill","none"); arc.setAttribute("stroke-width","10"); arc.setAttribute("stroke-linecap","round");
-  arc.setAttribute("stroke-dasharray","264");
-  arc.setAttribute("stroke-dashoffset", String(264 * (1 - clamp01(percent))));
-  arc.setAttribute("transform","rotate(-90 50 50)");
-  const color = tone === "over" ? "#E24B4A" : tone === "warn" ? "#EF9F27" : "#CECBF6";
-  arc.setAttribute("stroke", color);
-  svg.appendChild(track); svg.appendChild(arc);
-  return svg;
-}
-
-function el(tag, props = {}, ...children) {
-  const node = document.createElement(tag);
-  if (tag === "button" && !("type" in (props || {}))) node.type = "button";
+function el(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  if (tag === "button" && !(props && "type" in props)) n.type = "button";
   for (const [k, v] of Object.entries(props || {})) {
-    if (k === "className") node.className = v;
-    else if (k === "text") node.textContent = v;
-    else if (k.startsWith("on") && typeof v === "function") node[k.toLowerCase()] = v;
-    else if (v != null) node.setAttribute(k, v);
+    if (k === "className") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on") && typeof v === "function") n[k.toLowerCase()] = v;
+    else if (v != null) n.setAttribute(k, v);
   }
-  for (const c of children.flat()) {
-    if (c == null) continue;
-    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-  }
-  return node;
+  for (const c of kids.flat()) { if (c == null) continue; n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); }
+  return n;
 }
 
+/* ---------- toast + delete-with-undo ---------- */
+function toast(msg, actionLabel, actionFn) {
+  const host = document.getElementById("toasts");
+  host.textContent = "";
+  const t = el("div", { className: "toast" }, el("span", { text: msg }));
+  if (actionLabel) t.appendChild(el("button", { onClick: () => { host.textContent = ""; if (toastTimer) clearTimeout(toastTimer); actionFn(); } }, actionLabel));
+  host.appendChild(t);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { if (host.firstChild === t) host.textContent = ""; }, actionLabel ? 6000 : 2200);
+}
+function deleteExpenseWithUndo(id) {
+  const idx = state.expenses.findIndex((e) => e.id === id);
+  if (idx < 0) return;
+  const removed = state.expenses[idx];
+  state.expenses.splice(idx, 1);
+  save(); render();
+  toast("Expense deleted", "Undo", () => {
+    state.expenses.splice(Math.min(idx, state.expenses.length), 0, removed);
+    save(); render();
+  });
+}
+
+/* ---------- render ---------- */
 function render() {
   const root = document.getElementById("content");
   root.textContent = "";
   try {
     root.appendChild(renderHeader());
     if (activeTab === "expenses") root.appendChild(renderExpensesTab());
-    else if (activeTab === "trends" && typeof renderTrendsTab === "function") root.appendChild(renderTrendsTab());
+    else if (activeTab === "trends") root.appendChild(renderTrendsTab());
     else root.appendChild(renderOverviewTab());
   } catch (err) {
     console.error(err);
-    root.appendChild(el("div", { className: "notice", text: "Something went wrong rendering. Reload the page." }));
+    root.appendChild(el("div", { className: "notice", text: "Something went wrong. Reload the page." }));
   }
   renderChrome();
 }
@@ -581,140 +349,14 @@ function renderChrome() {
   chrome.textContent = "";
   const tab = (id, icon, label) => el("button", {
     className: activeTab === id ? "active" : "", "aria-label": label,
-    onClick: () => setTab(id) },
+    onClick: () => { activeTab = id; try { localStorage.setItem(TAB_KEY, id); } catch (e) {} expFilter = { q: "", categoryId: null }; render(); } },
     el("span", { className: "ic", text: icon }), el("span", { text: label }));
   chrome.appendChild(el("div", { className: "tabbar" },
-    tab("overview", "◎", "Overview"),
-    tab("expenses", "≡", "Expenses"),
-    tab("trends", "▥", "Trends"),
-  ));
+    tab("overview", "◎", "Overview"), tab("expenses", "≡", "Expenses"), tab("trends", "▥", "Trends")));
   chrome.appendChild(el("button", { className: "fab", "aria-label": "Add expense",
     onClick: () => { if (state.categories.length === 0) return openNeedCategory(); openExpenseForm(null); } }, "+"));
 }
 
-function quickLog(q) {
-  if (!categoryById(q.categoryId) && state.categories.length === 0) return openNeedCategory();
-  const cur = monthKey(new Date());
-  if (selectedMonth !== cur) selectedMonth = cur;
-  const exp = { id: uid(), amount: Math.round(Number(q.amount) * 100) / 100,
-    categoryId: categoryById(q.categoryId) ? q.categoryId : state.categories[0].id,
-    date: todayISO(), description: q.label };
-  state.expenses.push(exp);
-  lastCategoryId = exp.categoryId;
-  save(); render();
-  toast(`${q.label} · ${money(fromCents(centsOf(q.amount)))}`, "Undo", () => {
-    state.expenses = state.expenses.filter((e) => e.id !== exp.id);
-    save(); render();
-  });
-}
-
-function renderQuickBar() {
-  const wrap = el("div", { className: "quick-bar-wrap" });
-  const loggedToday = state.expenses.some((e) => e.date === todayISO());
-  if (selectedMonth === monthKey(new Date()) && !loggedToday && (state.quick.length || state.expenses.length)) {
-    wrap.appendChild(el("div", { className: "qb-nudge", text: "Nothing logged today" }));
-  }
-  const bar = el("div", { className: "chips quick-bar" });
-  if (state.quick.length === 0) {
-    bar.appendChild(el("button", { className: "chip",
-      onClick: () => openSettings("quick") }, "+ Set up quick log"));
-  } else {
-    state.quick.forEach((q) => {
-      const cat = categoryById(q.categoryId);
-      let longPressed = false, lpTimer = null;
-      const b = el("button", { className: "chip qchip",
-        onClick: () => { if (longPressed) { longPressed = false; return; } quickLog(q); } },
-        (cat && cat.emoji ? cat.emoji + " " : "") + q.label + " · " + money(fromCents(centsOf(q.amount))));
-      b.oncontextmenu = (e) => { e.preventDefault(); longPressed = true; openExpenseForm(null, q); };
-      b.addEventListener("touchstart", () => {
-        longPressed = false;
-        lpTimer = setTimeout(() => { lpTimer = null; longPressed = true; openExpenseForm(null, q); }, 500);
-      }, { passive: true });
-      const clr = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
-      b.addEventListener("touchend", clr);
-      b.addEventListener("touchmove", clr);
-      bar.appendChild(b);
-    });
-  }
-  wrap.appendChild(bar);
-  return wrap;
-}
-
-function renderOverviewTab() {
-  const box = el("div", {});
-  box.appendChild(renderQuickBar());
-  box.appendChild(renderSummary());
-  const ba = renderBillsAdjust();
-  if (ba) box.appendChild(ba);
-  box.appendChild(renderForecast());
-  box.appendChild(renderCategories());
-  box.appendChild(renderRecent());
-  return box;
-}
-
-function renderTrendsTab() {
-  const box = el("div", {});
-
-  // ---- 6-month spending trend ----
-  box.appendChild(el("div", { className: "sec-title", text: "Spending · last 6 months" }));
-  const keys = [];
-  for (let i = 5; i >= 0; i--) keys.push(shiftMonth(selectedMonth, -i));
-  const spends = keys.map((k) => monthSpentCents(k));
-  const available = centsOf(state.income) - commitmentCents(selectedMonth);
-  const maxSpend = Math.max(1, ...spends);
-  const showLine = centsOf(state.income) > 0 && available > 0 && available <= maxSpend * 1.6;
-  const maxVal = showLine ? Math.max(maxSpend, available) : maxSpend * 1.12;
-
-  const chart = el("div", { className: "tchart" });
-  keys.forEach((k, i) => {
-    const isCur = k === selectedMonth;
-    const [y, m] = k.split("-").map(Number);
-    const col = el("div", { className: "col" + (showLine && spends[i] > available ? " over" : "") });
-    col.style.height = Math.round((spends[i] / maxVal) * 100) + "%";
-    const bar = el("div", { className: "tbar" + (isCur ? " cur" : "") },
-      col, el("span", { className: "lbl", text: new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short" }) }));
-    chart.appendChild(bar);
-  });
-  const wrap = el("div", { className: "tchart-wrap" }, chart);
-  if (showLine) {
-    const line = el("div", { className: "tline" },
-      el("span", { className: "cap", text: money(fromCents(available)) }));
-    line.style.bottom = Math.round(10 + (available / maxVal) * 150) + "px";
-    wrap.appendChild(line);
-  }
-  box.appendChild(wrap);
-  const withData = spends.filter((s) => s > 0);
-  const avg = withData.length ? Math.round(withData.reduce((a, b) => a + b, 0) / withData.length) : 0;
-  box.appendChild(el("div", { className: "fc-note", style: "margin:-8px 2px 16px;",
-    text: `Average ${money(fromCents(avg))} a month.` + (showLine ? "  Dashed line = income minus commitments." : "") }));
-
-  // ---- category breakdown for the selected month ----
-  box.appendChild(el("div", { className: "sec-title", text: `Where it went · ${fmtMonth(selectedMonth).split(" ")[0]}` }));
-  const map = spentCentsByCategory(selectedMonth);
-  const total = sumCents([...map.values()]);
-  if (total === 0) {
-    box.appendChild(el("div", { className: "empty", text: "No spending this month." }));
-    return box;
-  }
-  const items = state.categories.map((c, i) => ({ name: c.name, cents: map.get(c.id) || 0, color: catColor(i) }));
-  if (map.get("__uncat__")) items.push({ name: "Uncategorized", cents: map.get("__uncat__"), color: "var(--muted)" });
-  items.filter((x) => x.cents > 0).sort((a, b) => b.cents - a.cents).forEach((x) => {
-    const pct = Math.round((x.cents / total) * 100);
-    const fill = el("i");
-    fill.style.width = Math.max(2, pct) + "%";
-    fill.style.background = x.color;
-    box.appendChild(el("div", {},
-      el("div", { className: "bk-row" },
-        el("span", { className: "dot", style: `background:${x.color}` }),
-        el("span", { className: "nm", text: x.name }),
-        el("span", { className: "pc", text: pct + "%" }),
-        el("span", { className: "am", text: money(fromCents(x.cents)) })),
-      el("div", { className: "bk-bar" }, fill)));
-  });
-  box.appendChild(el("div", { className: "fc-note", style: "margin-top:10px;",
-    text: `Total ${money(fromCents(total))} across ${items.filter((x) => x.cents > 0).length} categories.` }));
-  return box;
-}
 function renderHeader() {
   return el("div", { className: "hdr" },
     el("div", { className: "month" },
@@ -722,337 +364,162 @@ function renderHeader() {
         onClick: () => { selectedMonth = shiftMonth(selectedMonth, -1); render(); } }, "‹"),
       el("b", { text: fmtMonth(selectedMonth) }),
       el("button", { className: "iconbtn", "aria-label": "Next month",
-        onClick: () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); } }, "›"),
-    ),
-    el("button", { className: "iconbtn", "aria-label": "Settings",
-      onClick: () => openSettings("menu") }, "⚙"),
-  );
+        onClick: () => { selectedMonth = shiftMonth(selectedMonth, 1); render(); } }, "›")),
+    el("button", { className: "iconbtn", "aria-label": "Settings", onClick: openSettings }, "⚙"));
 }
 
-function renderSummary() {
+/* ----- Overview ----- */
+function renderOverviewTab() {
+  const box = el("div", {});
+  box.appendChild(renderQuickBar());
+  box.appendChild(renderHero());
+  box.appendChild(renderByCategory());
+  box.appendChild(renderRecent());
+  return box;
+}
+
+function renderHero() {
   const spent = monthSpentCents(selectedMonth);
-  const mName = fmtMonth(selectedMonth).split(" ")[0];
+  const prev = monthSpentCents(shiftMonth(selectedMonth, -1));
+  const count = expensesForMonth(selectedMonth).length;
+  const sub = prev > 0
+    ? `${monthShort(shiftMonth(selectedMonth, -1))}: ${money(fromCents(prev))}`
+    : `${count} expense${count === 1 ? "" : "s"}`;
+  return el("div", { className: "hero" },
+    el("div", { className: "lbl", text: `Spent in ${monthShort(selectedMonth)}` }),
+    el("div", { className: "big", text: money(fromCents(spent)) }),
+    el("div", { className: "sub", text: sub }));
+}
 
-  if (centsOf(state.income) <= 0) {
-    return el("div", { className: "summary summary-plain" },
+function renderByCategory() {
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title" }, el("span", { text: "By category" })));
+  const map = spentByCategory(selectedMonth);
+  const total = sumCents([...map.values()]);
+  if (total === 0) { box.appendChild(el("div", { className: "empty", text: `Nothing logged in ${monthShort(selectedMonth)} yet.` })); return box; }
+  const items = state.categories.map((c, i) => ({ name: c.name, emoji: c.emoji, cents: map.get(c.id) || 0, color: catColor(i) }));
+  if (map.get("__uncat__")) items.push({ name: "Uncategorized", emoji: "", cents: map.get("__uncat__"), color: "var(--muted)" });
+  items.filter((x) => x.cents > 0).sort((a, b) => b.cents - a.cents).forEach((x) => {
+    const pct = Math.round((x.cents / total) * 100);
+    const fill = el("i"); fill.style.width = Math.max(2, pct) + "%"; fill.style.background = x.color;
+    const tile = el("div", { className: "tile" }); tile.style.background = x.color + "22";
+    if (x.emoji) tile.appendChild(el("span", { text: x.emoji }));
+    else { const d = el("div", { className: "dot" }); d.style.background = x.color; tile.appendChild(d); }
+    box.appendChild(el("div", { className: "cat-row" }, tile,
       el("div", { className: "grow" },
-        el("div", { className: "lbl", text: `Spent in ${mName}` }),
-        el("div", { className: "big", text: money(fromCents(spent)) }),
-        el("button", { className: "summary-link",
-          onClick: () => openSettings("money") }, "Set up income for a forecast →")));
-  }
-
-  const f = forecast(selectedMonth);
-  const denom = Math.max(1, f.available - f.goal);
-  const usedPct = clamp01(f.everyday / denom);
-  const tone = f.everyday > denom ? "over" : (f.everyday >= denom * 0.8 ? "warn" : "normal");
-
-  const headlineCents = f.mp.pos === "current"
-    ? (f.goal > 0 ? f.spendableForGoal : f.remainingNow)
-    : f.projectedLeftover;
-  const headlineLabel = f.mp.pos === "current"
-    ? (f.goal > 0 ? "Left to spend" : "Money left")
-    : (f.mp.pos === "past" ? "Left over" : "Projected leftover");
-
-  let sub;
-  if (f.mp.pos === "current" && f.goal > 0 && f.perDayForGoal != null) {
-    sub = f.perDayForGoal >= 0
-      ? `≈ ${money(fromCents(f.perDayForGoal))}/day and you still save ${money(fromCents(f.goal))}`
-      : "over budget for the rest of the month";
-  } else if (f.mp.pos === "current" && f.safePerDay != null) {
-    sub = f.safePerDay >= 0
-      ? `≈ ${money(fromCents(f.safePerDay))}/day for ${f.mp.daysLeft} more day${f.mp.daysLeft === 1 ? "" : "s"}`
-      : "nothing left for the rest of the month";
-  } else {
-    sub = `${mName} · everyday ${money(fromCents(f.everyday))}`;
-  }
-
-  const wrap = el("div", { className: "ring-wrap" });
-  wrap.appendChild(ringSvg(usedPct, tone));
-  wrap.appendChild(el("div", { className: "pct" },
-    el("b", { text: `${Math.round(usedPct * 100)}%` }), el("span", { text: "used" })));
-
-  return el("div", { className: "summary" },
-    wrap,
-    el("div", { className: "grow" },
-      el("div", { className: "lbl", text: headlineLabel }),
-      el("div", { className: "big" + (headlineCents < 0 ? " neg" : ""),
-        text: (headlineCents < 0 ? "− " : "") + money(fromCents(Math.abs(headlineCents))) }),
-      el("div", { className: "sub", text: sub })));
-}
-
-function renderBillsAdjust() {
-  const varied = centsOf(state.income) > 0 ? state.commitments.filter((c) => c.varies) : [];
-  if (!varied.length) return null;
-
-  const box = el("div", {});
-  box.appendChild(el("div", { className: "sec-title", text: `This month's bills · ${fmtMonth(selectedMonth).split(" ")[0]}` }));
-  const card = el("div", { className: "bills-card" });
-  let rerenderT = null;
-  const scheduleRender = () => { if (rerenderT) clearTimeout(rerenderT); rerenderT = setTimeout(render, 450); };
-
-  varied.forEach((c) => {
-    if (!c.byMonth) c.byMonth = {};
-    const isSet = c.byMonth[selectedMonth] != null;
-    const inp = el("input", { className: "vc-in", type: "number", step: "0.01", inputmode: "decimal",
-      value: String(commitmentAmount(c, selectedMonth)) });
-    const write = (v) => {
-      if (!(v > 0)) delete c.byMonth[selectedMonth];
-      else c.byMonth[selectedMonth] = Math.round(v * 100) / 100;
-      save();
-    };
-    inp.onchange = () => { write(Number(inp.value)); render(); };
-    const step = (d) => el("button", { className: "vc-step",
-      onClick: () => {
-        inp.value = Math.max(0, Math.round(((Number(inp.value) || 0) + d) * 100) / 100).toString();
-        write(Number(inp.value)); scheduleRender();
-      } }, d > 0 ? "+" + d : String(d));
-    card.appendChild(el("div", { className: "vc-row" + (isSet ? "" : " est") },
-      el("span", { className: "vc-nm", text: c.name }, isSet ? null : el("span", { className: "vc-tag", text: "estimate" })),
-      step(-10), inp, step(10)));
-  });
-  box.appendChild(card);
-  return box;
-}
-
-function renderForecast() {
-  const box = el("div", {});
-  if (centsOf(state.income) <= 0) return box;
-
-  const f = forecast(selectedMonth);
-
-  const toggle = el("button", { className: "fc-toggle",
-    onClick: () => {
-      fcCollapsed = !fcCollapsed;
-      try { localStorage.setItem("expense-tracker-fc-collapsed", fcCollapsed ? "1" : "0"); } catch (e) {}
-      render();
-    } },
-    el("span", { className: "t", text: "Forecast details" }),
-    el("span", { className: "chev" + (fcCollapsed ? "" : " open"), text: "›" }));
-  box.appendChild(toggle);
-
-  if (fcCollapsed) return box;
-
-  const card = el("div", { className: "fc" });
-  const row = (k, v, neg) => el("div", { className: "fc-row" },
-    el("span", { className: "k", text: k }),
-    el("span", { className: "v" + (neg ? " neg" : ""), text: v }));
-  const signed = (cents) => (cents < 0 ? "− " : "") + money(fromCents(Math.abs(cents)));
-  const bigRow = (k, cents) => el("div", { className: "fc-row total" },
-    el("span", { className: "k", text: k }),
-    el("span", { className: "v fc-big " + (cents >= 0 ? "good" : "bad"), text: signed(cents) }));
-
-  card.appendChild(row("Income", money(fromCents(f.income))));
-  const fixedPaid = fixedSpentCents(selectedMonth);
-  card.appendChild(row("Bills & commitments", "− " + money(fromCents(f.commit)), true));
-  if (fixedPaid > 0) {
-    card.appendChild(el("div", { className: "fc-note", style: "margin:2px 0 0;",
-      text: `Includes ${money(fromCents(fixedPaid))} of fixed bills you've logged` +
-        (f.commit > fixedPaid ? `; the rest is your estimate.` : `.`) }));
-  }
-
-  const note = (t) => card.appendChild(el("div", { className: "fc-note", text: t }));
-  const daysLeftTxt = `${f.mp.daysLeft} day${f.mp.daysLeft === 1 ? "" : "s"} left`;
-  const hasGoal = f.goal > 0;
-
-  if (f.mp.pos === "past") {
-    card.appendChild(row("Everyday spending", "− " + money(fromCents(f.everyday)), true));
-    card.appendChild(bigRow("Left over", f.projectedLeftover));
-    if (hasGoal) {
-      const diff = f.projectedLeftover - f.goal;
-      note(diff >= 0
-        ? `Saved ${money(fromCents(diff))} more than your ${money(fromCents(f.goal))} goal.`
-        : `That's ${money(fromCents(-diff))} short of your ${money(fromCents(f.goal))} goal.`);
-    }
-  } else if (f.mp.pos === "future") {
-    card.appendChild(row("Estimated spending", "− " + money(fromCents(f.projectedEveryday)), true));
-    card.appendChild(bigRow("Projected leftover", f.projectedLeftover));
-    note("Spending estimated from your recent monthly average.");
-    if (hasGoal) note(`To save ${money(fromCents(f.goal))}, keep everyday spending under ${money(fromCents(f.available - f.goal))} this month.`);
-  } else {
-    card.appendChild(row("Everyday so far", "− " + money(fromCents(f.everyday)), true));
-    if (hasGoal) card.appendChild(row("Savings goal", "− " + money(fromCents(f.goal)), true));
-    card.appendChild(bigRow(hasGoal ? "Left to spend this month" : "Money left this month",
-      hasGoal ? f.spendableForGoal : f.remainingNow));
-    if (hasGoal) {
-      if (f.perDayForGoal != null) {
-        note(f.perDayForGoal >= 0
-          ? `Spend up to ${money(fromCents(f.perDayForGoal))} a day for the ${daysLeftTxt} and you'll still save ${money(fromCents(f.goal))}. Spend less to save more.`
-          : `You've already spent past what leaves room for your ${money(fromCents(f.goal))} goal this month.`);
-      }
-      note(`Money left before the goal: ${money(fromCents(f.remainingNow))}.`);
-    } else if (f.safePerDay != null) {
-      note(f.safePerDay >= 0
-        ? `About ${money(fromCents(f.safePerDay))} a day for the ${daysLeftTxt}.`
-        : "Nothing left in the everyday budget for the rest of the month.");
-    }
-    card.appendChild(el("div", { className: "fc-sub", text: "If you keep spending at this pace" }));
-    card.appendChild(row("Projected spending (full month)", "− " + money(fromCents(f.projectedEveryday)), true));
-    card.appendChild(row("Left over at month end", signed(f.projectedLeftover)));
-    if (hasGoal) {
-      const diff = f.projectedLeftover - f.goal;
-      note(diff >= 0
-        ? `On track to save ${money(fromCents(diff))} above your ${money(fromCents(f.goal))} goal.`
-        : `That's ${money(fromCents(-diff))} short of your ${money(fromCents(f.goal))} goal.`);
-    }
-  }
-
-  if (f.savingsRate != null) {
-    const sr = `${Math.round(f.savingsRate * 100)}% of income.`;
-    note((f.mp.pos === "past" ? "Savings rate: " : "Projected savings rate: ") + sr);
-  }
-  box.appendChild(card);
-  return box;
-}
-
-const CAT_PALETTE = ["#EF9F27", "#E24B4A", "#1D9E75", "#378ADD", "#7F77DD", "#D4537E", "#0F6E56", "#BA7517"];
-const catColor = (i) => CAT_PALETTE[i % CAT_PALETTE.length];
-
-function fmtDayShort(iso) {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function renderCategories() {
-  const box = el("div", {});
-  box.appendChild(el("div", { className: "sec-title", text: "Category budgets" }));
-  if (state.categories.length === 0) {
-    box.appendChild(el("div", { className: "empty", text: "Add a category to get started." }));
-    return box;
-  }
-  const spentMap = spentCentsByCategory(selectedMonth);
-  state.categories.forEach((c, i) => {
-    const spent = spentMap.get(c.id) || 0;
-    const budget = centsOf(c.budget);
-    const tone = status(spent, budget);
-    const width = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
-    const tile = el("div", { className: "tile" });
-    tile.style.background = catColor(i) + "22";
-    if (c.emoji) {
-      tile.appendChild(el("span", { text: c.emoji }));
-    } else {
-      const catDot = el("div", { className: "dot" });
-      catDot.style.background = catColor(i);
-      tile.appendChild(catDot);
-    }
-    const barFill = el("i", { className: tone });
-    barFill.style.width = width + "%";
-    box.appendChild(el("div", { className: "cat-row" },
-      tile,
-      el("div", { className: "grow" },
-        el("div", { className: "row-top" },
-          el("span", { className: "name", text: c.name }),
-          el("span", { className: "nums" + (tone === "over" ? " over" : ""),
-            text: `${money(fromCents(spent))} / ${money(fromCents(budget))}` }),
-        ),
-        el("div", { className: "bar" }, barFill),
-      ),
-    ));
+        el("div", { className: "rt" }, el("span", { className: "nm", text: x.name }),
+          el("span", { className: "am", text: `${money(fromCents(x.cents))} · ${pct}%` })),
+        el("div", { className: "cbar" }, fill))));
   });
   return box;
 }
 
-function expenseRowInner(e, showDayInMeta) {
+function expenseRow(e, showDay) {
   const cat = categoryById(e.categoryId);
   const idx = cat ? state.categories.indexOf(cat) : -1;
   let dot;
-  if (cat && cat.emoji) {
-    dot = el("span", { className: "emoji-dot", text: cat.emoji });
-  } else {
-    dot = el("div", { className: "dot" });
-    dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)";
-  }
+  if (cat && cat.emoji) dot = el("span", { className: "emoji-dot", text: cat.emoji });
+  else { dot = el("div", { className: "dot" }); dot.style.background = idx >= 0 ? catColor(idx) : "var(--muted)"; }
   const label = (e.description && e.description.trim()) ? e.description : (cat ? cat.name : "Uncategorized");
-  const meta = (cat ? cat.name : "Uncategorized") + (showDayInMeta ? ` · ${fmtDayShort(e.date)}` : "") + (e.fixed ? " · fixed" : "");
-  return el("button", { className: "exp-row", "data-id": e.id,
-    onClick: () => openEdit(e.id) },
-    el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px;" },
-      dot,
-      el("div", {},
-        el("div", { className: "desc" }, label, e.fixed ? el("span", { className: "fx-tag", text: "📌" }) : null),
-        el("div", { className: "meta", text: meta }),
-      ),
-    ),
-    el("div", { className: "amt", text: `${money(fromCents(centsOf(e.amount)))}` }),
-  );
+  const meta = (cat ? cat.name : "Uncategorized") + (showDay ? ` · ${fmtDayShort(e.date)}` : "");
+  return el("button", { className: "exp-row", "data-id": e.id, onClick: () => openExpenseForm(e.id) },
+    el("div", { className: "grow", style: "display:flex;align-items:center;gap:10px" }, dot,
+      el("div", {}, el("div", { className: "desc", text: label }), el("div", { className: "meta", text: meta }))),
+    el("div", { className: "amt", text: money(fromCents(centsOf(e.amount))) }));
 }
 
 function renderRecent() {
   const box = el("div", {});
   const rows = expensesForMonth(selectedMonth);
-  const head = el("div", { className: "row-top", style: "margin:6px 2px 4px;" },
-    el("span", { className: "sec-title", style: "margin:0;", text: "Recent" }));
-  if (rows.length > 5) head.appendChild(el("button", { className: "chip", style: "border:none;background:none;color:var(--accent);padding:4px 0;",
-    onClick: () => setTab("expenses") }, "See all"));
+  const head = el("div", { className: "sec-title" }, el("span", { text: "Recent" }));
+  if (rows.length > 5) head.appendChild(el("button", { className: "link", onClick: () => { activeTab = "expenses"; render(); } }, "See all"));
   box.appendChild(head);
-  if (rows.length === 0) {
-    box.appendChild(el("div", { className: "empty", text: `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
-    return box;
-  }
-  rows.slice(0, 5).forEach((e) => box.appendChild(expenseRowInner(e, true)));
+  if (rows.length === 0) return box;
+  rows.slice(0, 5).forEach((e) => box.appendChild(expenseRow(e, true)));
   return box;
 }
 
-function dayLabel(iso) {
-  if (iso === todayISO()) return "Today";
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  if (iso === `${y.getFullYear()}-${pad2(y.getMonth() + 1)}-${pad2(y.getDate())}`) return "Yesterday";
-  const [yr, m, d] = iso.split("-").map(Number);
-  return new Date(yr, m - 1, d).toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+/* ----- Quick log ----- */
+function quickLog(q) {
+  if (!categoryById(q.categoryId) && state.categories.length === 0) return openNeedCategory();
+  const cur = monthKey(new Date());
+  if (selectedMonth !== cur) selectedMonth = cur;
+  const exp = { id: uid(), amount: Math.round(Number(q.amount) * 100) / 100,
+    categoryId: categoryById(q.categoryId) ? q.categoryId : state.categories[0].id,
+    date: todayISO(), description: q.label };
+  state.expenses.push(exp); lastCategoryId = exp.categoryId; save(); render();
+  toast(`${q.label} · ${money(fromCents(centsOf(q.amount)))}`, "Undo", () => {
+    state.expenses = state.expenses.filter((e) => e.id !== exp.id); save(); render();
+  });
 }
 
+function renderQuickBar() {
+  const wrap = el("div", { className: "quick-wrap" });
+  const loggedToday = state.expenses.some((e) => e.date === todayISO());
+  if (selectedMonth === monthKey(new Date()) && !loggedToday && (state.quick.length || state.expenses.length))
+    wrap.appendChild(el("div", { className: "qb-nudge", text: "Nothing logged today" }));
+  const bar = el("div", { className: "chips" });
+  if (state.quick.length === 0) {
+    bar.appendChild(el("button", { className: "chip", onClick: () => openSettings("quick") }, "+ Set up quick log"));
+  } else {
+    state.quick.forEach((q) => {
+      const cat = categoryById(q.categoryId);
+      let lp = false, t = null;
+      const b = el("button", { className: "chip qchip",
+        onClick: () => { if (lp) { lp = false; return; } quickLog(q); } },
+        (cat && cat.emoji ? cat.emoji + " " : "") + q.label + " · " + money(fromCents(centsOf(q.amount))));
+      b.oncontextmenu = (e) => { e.preventDefault(); lp = true; openExpenseForm(null, q); };
+      b.addEventListener("touchstart", () => { lp = false; t = setTimeout(() => { t = null; lp = true; openExpenseForm(null, q); }, 500); }, { passive: true });
+      const clr = () => { if (t) { clearTimeout(t); t = null; } };
+      b.addEventListener("touchend", clr); b.addEventListener("touchmove", clr);
+      bar.appendChild(b);
+    });
+  }
+  wrap.appendChild(bar);
+  return wrap;
+}
+
+/* ----- Expenses tab ----- */
+function expenseMatches(e, q) {
+  if (!q) return true;
+  const cat = categoryById(e.categoryId);
+  return ((e.description || "") + " " + (cat ? cat.name : "")).toLowerCase().includes(q);
+}
 function closeOtherSwipes(except) {
   document.querySelectorAll('.swipe-wrap[data-open="1"]').forEach((w) => {
     if (w === except) return;
     w.dataset.open = "0";
-    const inner = w.querySelector(".swipe-inner");
-    if (inner) { inner.style.transition = "transform .18s ease"; inner.style.transform = "translateX(0)"; }
+    const i = w.querySelector(".swipe-inner");
+    if (i) { i.style.transition = "transform .18s ease"; i.style.transform = "translateX(0)"; }
   });
 }
-
 function swipeRow(inner, onEdit, onDelete) {
   const OPEN = -140;
   const wrap = el("div", { className: "swipe-wrap" });
   wrap.dataset.open = "0";
-  const actions = el("div", { className: "swipe-actions" },
-    el("button", { className: "swipe-edit", onClick: (ev) => { ev.stopPropagation(); onEdit(); } }, "Edit"),
-    el("button", { className: "swipe-del", onClick: (ev) => { ev.stopPropagation(); onDelete(); } }, "Delete"));
+  wrap.appendChild(el("div", { className: "swipe-actions" },
+    el("button", { className: "e", onClick: (ev) => { ev.stopPropagation(); onEdit(); } }, "Edit"),
+    el("button", { className: "d", onClick: (ev) => { ev.stopPropagation(); onDelete(); } }, "Delete")));
   inner.classList.add("swipe-inner");
-  wrap.appendChild(actions);
   wrap.appendChild(inner);
-
-  let startX = 0, startY = 0, dx = 0, dragging = false, decided = null, moved = false;
+  let sx = 0, sy = 0, dx = 0, drag = false, dir = null, moved = false;
   const setX = (x) => { inner.style.transform = `translateX(${x}px)`; };
-  inner.addEventListener("touchstart", (e) => {
-    const t = e.touches[0]; startX = t.clientX; startY = t.clientY;
-    dragging = true; decided = null; moved = false;
-    inner.style.transition = "none";
-  }, { passive: true });
+  inner.addEventListener("touchstart", (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; drag = true; dir = null; moved = false; inner.style.transition = "none"; }, { passive: true });
   inner.addEventListener("touchmove", (e) => {
-    if (!dragging) return;
-    const t = e.touches[0];
-    const mx = t.clientX - startX, my = t.clientY - startY;
-    if (decided === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) decided = Math.abs(mx) > Math.abs(my) ? "h" : "v";
-    if (decided !== "h") return;
-    e.preventDefault();
-    moved = true;
+    if (!drag) return;
+    const t = e.touches[0], mx = t.clientX - sx, my = t.clientY - sy;
+    if (dir === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) dir = Math.abs(mx) > Math.abs(my) ? "h" : "v";
+    if (dir !== "h") return;
+    e.preventDefault(); moved = true;
     const base = wrap.dataset.open === "1" ? OPEN : 0;
-    dx = Math.max(OPEN, Math.min(0, base + mx));
-    setX(dx);
+    dx = Math.max(OPEN, Math.min(0, base + mx)); setX(dx);
   }, { passive: false });
   const end = () => {
-    if (!dragging) return;
-    dragging = false;
+    if (!drag) return; drag = false;
     inner.style.transition = "transform .18s ease";
-    if (decided === "h") {
-      const open = dx < OPEN / 2;
-      setX(open ? OPEN : 0);
-      wrap.dataset.open = open ? "1" : "0";
-      if (open) closeOtherSwipes(wrap);
-    }
+    if (dir === "h") { const open = dx < OPEN / 2; setX(open ? OPEN : 0); wrap.dataset.open = open ? "1" : "0"; if (open) closeOtherSwipes(wrap); }
   };
-  inner.addEventListener("touchend", end);
-  inner.addEventListener("touchcancel", end);
+  inner.addEventListener("touchend", end); inner.addEventListener("touchcancel", end);
   inner.addEventListener("click", (e) => {
     if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; return; }
     if (wrap.dataset.open === "1") { e.preventDefault(); e.stopPropagation(); wrap.dataset.open = "0"; setX(0); }
@@ -1060,41 +527,20 @@ function swipeRow(inner, onEdit, onDelete) {
   return wrap;
 }
 
-function expenseMatches(e, q) {
-  if (!q) return true;
-  const cat = categoryById(e.categoryId);
-  return ((e.description || "") + " " + (cat ? cat.name : "")).toLowerCase().includes(q);
-}
-
 function renderExpensesTab() {
   const box = el("div", {});
-  let rows = expensesForMonth(selectedMonth);
+  const rows = expensesForMonth(selectedMonth);
 
-  const search = el("input", { className: "search", type: "search", placeholder: "Search expenses", value: expFilter.q });
+  const search = el("input", { className: "field", type: "search", placeholder: "Search expenses", value: expFilter.q, style: "margin-bottom:10px" });
   search.oninput = () => { expFilter.q = search.value.trim().toLowerCase(); renderList(); };
   box.appendChild(search);
 
-  const chipRow = el("div", { className: "chips" });
-  const mkChip = (label, id) => el("button", {
-    className: "chip" + (!expFilter.fixed && expFilter.categoryId === id ? " active" : ""),
-    onClick: () => { expFilter.categoryId = id; expFilter.fixed = false; render(); } }, label);
+  const chipRow = el("div", { className: "chips", style: "margin-bottom:6px" });
+  const mkChip = (label, id) => el("button", { className: "chip" + (expFilter.categoryId === id ? " active" : ""),
+    onClick: () => { expFilter.categoryId = id; render(); } }, label);
   chipRow.appendChild(mkChip("All", null));
-  chipRow.appendChild(el("button", { className: "chip" + (expFilter.fixed ? " active" : ""),
-    onClick: () => { expFilter.fixed = !expFilter.fixed; expFilter.categoryId = null; render(); } }, "📌 Fixed"));
-  state.categories.forEach((c) => chipRow.appendChild(mkChip(c.name, c.id)));
+  state.categories.forEach((c) => chipRow.appendChild(mkChip((c.emoji ? c.emoji + " " : "") + c.name, c.id)));
   box.appendChild(chipRow);
-
-  const due = unloggedRecurring(selectedMonth);
-  if (due.length && !expFilter.q && !expFilter.categoryId) {
-    const rp = el("div", { className: "rec-prompt" });
-    rp.appendChild(el("div", { className: "rp-h", text: `Recurring not yet added for ${fmtMonth(selectedMonth).split(" ")[0]}` }));
-    due.forEach((r) => {
-      rp.appendChild(el("div", { className: "rp-row" },
-        el("span", { text: `${r.name} · ${money(fromCents(centsOf(r.amount)))}` }),
-        el("button", { className: "rp-add", onClick: () => addRecurringToMonth(r, selectedMonth) }, "Add")));
-    });
-    box.appendChild(rp);
-  }
 
   const listHost = el("div", {});
   box.appendChild(listHost);
@@ -1103,304 +549,178 @@ function renderExpensesTab() {
     listHost.textContent = "";
     let list = rows.filter((e) => expenseMatches(e, expFilter.q));
     if (expFilter.categoryId) list = list.filter((e) => e.categoryId === expFilter.categoryId);
-    if (expFilter.fixed) list = list.filter((e) => e.fixed);
     if (list.length === 0) {
       listHost.appendChild(el("div", { className: "empty",
-        text: (expFilter.q || expFilter.categoryId || expFilter.fixed) ? "No matching expenses." : `No expenses in ${fmtMonth(selectedMonth).split(" ")[0]} yet.` }));
+        text: (expFilter.q || expFilter.categoryId) ? "No matching expenses." : `Nothing logged in ${monthShort(selectedMonth)} yet.` }));
       return;
     }
-    let curDate = null, group = null, dayCents = 0, dayTotalEl = null;
+    let curDate = null, group = null, dayCents = 0, dayEl = null;
     list.forEach((e) => {
       if (e.date !== curDate) {
-        if (dayTotalEl) dayTotalEl.textContent = money(fromCents(dayCents));
-        curDate = e.date; dayCents = 0;
-        dayTotalEl = el("span", {});
-        listHost.appendChild(el("div", { className: "day-head" },
-          el("span", { text: dayLabel(e.date) }), dayTotalEl));
-        group = el("div", {});
-        listHost.appendChild(group);
+        if (dayEl) dayEl.textContent = money(fromCents(dayCents));
+        curDate = e.date; dayCents = 0; dayEl = el("span", {});
+        listHost.appendChild(el("div", { className: "day-head" }, el("span", { text: dayLabel(e.date) }), dayEl));
+        group = el("div", {}); listHost.appendChild(group);
       }
       dayCents += centsOf(e.amount);
-      group.appendChild(swipeRow(expenseRowInner(e, false),
-        () => openEdit(e.id),
-        () => deleteExpenseWithUndo(e.id)));
+      group.appendChild(swipeRow(expenseRow(e, false), () => openExpenseForm(e.id), () => deleteExpenseWithUndo(e.id)));
     });
-    if (dayTotalEl) dayTotalEl.textContent = money(fromCents(dayCents));
+    if (dayEl) dayEl.textContent = money(fromCents(dayCents));
   }
   renderList();
   return box;
 }
 
+/* ----- Trends tab ----- */
+function renderTrendsTab() {
+  const box = el("div", {});
+  box.appendChild(el("div", { className: "sec-title" }, el("span", { text: "Spending · last 6 months" })));
+  const keys = [];
+  for (let i = 5; i >= 0; i--) keys.push(shiftMonth(selectedMonth, -i));
+  const spends = keys.map((k) => monthSpentCents(k));
+  const maxV = Math.max(1, ...spends) * 1.12;
+  const chart = el("div", { className: "tchart" });
+  keys.forEach((k, i) => {
+    const [y, m] = k.split("-").map(Number);
+    const col = el("div", { className: "col" }); col.style.height = Math.round((spends[i] / maxV) * 100) + "%";
+    chart.appendChild(el("button", { className: "tbar" + (k === selectedMonth ? " cur" : ""),
+      onClick: () => { selectedMonth = k; render(); } },
+      col, el("span", { className: "lbl", text: new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short" }) })));
+  });
+  box.appendChild(el("div", { className: "tchart-wrap" }, chart));
+  const withData = spends.filter((s) => s > 0);
+  const avg = withData.length ? Math.round(withData.reduce((a, b) => a + b, 0) / withData.length) : 0;
+  box.appendChild(el("div", { className: "empty", style: "padding:0 2px 16px", text: `Average ${money(fromCents(avg))} a month. Tap a bar to open that month.` }));
+  box.appendChild(renderByCategory());
+  return box;
+}
+
+/* ---------- modal ---------- */
 const modal = () => document.getElementById("modal");
 const modalCard = () => modal().querySelector(".modal-card");
-
 function openModal(node) {
   const card = modalCard();
-  card.textContent = "";
-  card.appendChild(node);
+  card.textContent = ""; card.appendChild(node);
   const h2 = card.querySelector("h2");
-  if (h2) { if (!h2.id) h2.id = "modal-title"; card.setAttribute("aria-labelledby", h2.id); }
-  else card.removeAttribute("aria-labelledby");
-  modal().hidden = false;
-  modal().scrollTop = 0;
-  card.scrollTop = 0;
+  if (h2) { if (!h2.id) h2.id = "modal-title"; card.setAttribute("aria-labelledby", h2.id); } else card.removeAttribute("aria-labelledby");
+  modal().hidden = false; modal().scrollTop = 0; card.scrollTop = 0;
   document.body.style.overflow = "hidden";
   modal().onclick = (ev) => { if (ev.target === modal()) closeModal(); };
-  const focusTarget = card.querySelector("input, select, textarea, button") || card;
-  if (!focusTarget.hasAttribute("tabindex") && focusTarget === card) focusTarget.tabIndex = -1;
-  focusTarget.focus({ preventScroll: true });
+  const f = card.querySelector("input, select, textarea, button") || card;
+  if (!f.hasAttribute("tabindex") && f === card) f.tabIndex = -1;
+  f.focus({ preventScroll: true });
 }
 function closeModal() { modal().hidden = true; modalCard().textContent = ""; document.body.style.overflow = ""; }
-
-document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape" && !modal().hidden) closeModal();
-});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !modal().hidden) closeModal(); });
 
 function openNeedCategory() {
-  openModal(el("div", {},
-    el("h2", { text: "Add a category first" }),
+  openModal(el("div", {}, el("h2", { text: "Add a category first" }),
     el("p", { className: "empty", text: "You need at least one category before adding an expense." }),
     el("div", { className: "modal-actions" },
       el("button", { className: "btn", onClick: closeModal }, "Cancel"),
-      el("button", { className: "btn primary", onClick: () => { closeModal(); openSettings("categories"); } }, "Open settings"),
-    ),
-  ));
+      el("button", { className: "btn primary", onClick: () => { closeModal(); openSettings("categories"); } }, "Open settings"))));
 }
 
-function validateExpenseForm({ amount, categoryId, date }) {
-  const n = Number(amount);
-  if (!amount || !isFinite(n) || n <= 0) return { ok: false, field: "amount", message: "Enter an amount greater than 0." };
-  if (!categoryById(categoryId)) return { ok: false, field: "categoryId", message: "Pick a category." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date))) return { ok: false, field: "date", message: "Pick a valid date." };
-  return { ok: true };
-}
+function field(labelText, inputEl) { return el("div", { className: "field" }, el("label", { text: labelText }), inputEl); }
 
-function openEdit(id) { openExpenseForm(id); }
-
+/* ---------- add / edit expense ---------- */
 function openExpenseForm(id, preset) {
   const editing = id != null ? state.expenses.find((e) => e.id === id) : null;
   if (id != null && !editing) return;
   const vals = {
     amount: editing ? String(editing.amount) : (preset ? String(preset.amount) : ""),
     categoryId: editing ? editing.categoryId
-         : (preset && categoryById(preset.categoryId) ? preset.categoryId
-            : (categoryById(lastCategoryId) ? lastCategoryId : state.categories[0].id)),
-    date: editing ? editing.date
-         : (selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`),
+      : (preset && categoryById(preset.categoryId) ? preset.categoryId : (categoryById(lastCategoryId) ? lastCategoryId : state.categories[0].id)),
+    date: editing ? editing.date : (selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`),
     description: editing ? (editing.description || "") : (preset ? preset.label : ""),
   };
-
-  const amountInput = el("input", { type: "number", step: "0.01", inputmode: "decimal", value: vals.amount });
+  const amountI = el("input", { type: "number", step: "0.01", inputmode: "decimal", value: vals.amount });
   const quick = el("div", { className: "quick-add" });
   [10, 50, 100].forEach((q) => quick.appendChild(el("button", { className: "chip",
-    onClick: () => { amountInput.value = (Math.round((Number(amountInput.value) || 0) * 100 + q * 100) / 100).toString(); amountInput.focus({ preventScroll: true }); } }, "+" + q)));
-  quick.appendChild(el("button", { className: "chip", onClick: () => { amountInput.value = ""; amountInput.focus({ preventScroll: true }); } }, "Clear"));
-  const catSelect = el("select", {},
-    ...state.categories.map((c) => {
-      const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
-      if (c.id === vals.categoryId) o.selected = true;
-      return o;
-    }));
-  const dateInput = el("input", { type: "date", value: vals.date });
-  const descInput = el("input", { type: "text", value: vals.description, maxlength: "80" });
-  const fixedBox = el("input", { type: "checkbox" });
-  fixedBox.checked = editing ? !!editing.fixed : (preset ? !!preset.fixed : false);
-
+    onClick: () => { amountI.value = (Math.round(((Number(amountI.value) || 0) + q) * 100) / 100).toString(); amountI.focus({ preventScroll: true }); } }, "+" + q)));
+  quick.appendChild(el("button", { className: "chip", onClick: () => { amountI.value = ""; amountI.focus({ preventScroll: true }); } }, "Clear"));
+  const catI = el("select", {}, ...state.categories.map((c) => {
+    const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
+    if (c.id === vals.categoryId) o.selected = true; return o;
+  }));
+  const dateI = el("input", { type: "date", value: vals.date });
+  const descI = el("input", { type: "text", value: vals.description, maxlength: "80" });
   const errBox = el("div", { className: "err" });
-  const fieldEls = { amount: amountInput, categoryId: catSelect, date: dateInput };
 
   function submit() {
-    const data = { amount: amountInput.value.trim(), categoryId: catSelect.value, date: dateInput.value };
-    const res = validateExpenseForm(data);
+    const amount = amountI.value.trim(), n = Number(amount);
     errBox.textContent = "";
-    if (!res.ok) {
-      errBox.textContent = res.message;
-      (fieldEls[res.field] || amountInput).focus();
-      return;
-    }
-    if (editing) {
-      editing.amount = Math.round(Number(data.amount) * 100) / 100;
-      editing.categoryId = data.categoryId;
-      editing.date = data.date;
-      editing.description = descInput.value.trim();
-      editing.fixed = fixedBox.checked;
-    } else {
-      state.expenses.push({ id: uid(), amount: Math.round(Number(data.amount) * 100) / 100, categoryId: data.categoryId,
-        date: data.date, description: descInput.value.trim(), fixed: fixedBox.checked });
-    }
-    lastCategoryId = data.categoryId;
+    if (!amount || !isFinite(n) || n <= 0) { errBox.textContent = "Enter an amount greater than 0."; amountI.focus(); return; }
+    if (!categoryById(catI.value)) { errBox.textContent = "Pick a category."; catI.focus(); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateI.value) || isNaN(Date.parse(dateI.value))) { errBox.textContent = "Pick a valid date."; dateI.focus(); return; }
+    const amt = Math.round(n * 100) / 100;
+    if (editing) { editing.amount = amt; editing.categoryId = catI.value; editing.date = dateI.value; editing.description = descI.value.trim(); }
+    else state.expenses.push({ id: uid(), amount: amt, categoryId: catI.value, date: dateI.value, description: descI.value.trim() });
+    lastCategoryId = catI.value;
     save(); closeModal(); render();
     toast(editing ? "Saved" : "Expense added");
   }
 
-  const actions = el("div", { className: "modal-actions" },
-    el("button", { className: "btn", onClick: closeModal }, "Cancel"),
-    el("button", { className: "btn primary", onClick: submit }, editing ? "Save" : "Add"),
-  );
-
-  const amountField = field("Amount (RM)", amountInput);
-  amountField.appendChild(quick);
-
-  const card = el("div", {},
-    el("h2", { text: editing ? "Edit expense" : "New expense" }),
-    amountField,
-    field("Category", catSelect),
-    field("Date", dateInput),
-    field("Description (optional)", descInput),
-    el("label", { className: "vary-lbl", style: "margin:2px 0 10px;" }, fixedBox,
-      el("span", {}, el("b", { style: "font-weight:500;", text: "Fixed bill / commitment" }),
-        el("span", { className: "smd", style: "display:block;font-size:12px;color:var(--muted);",
-          text: "Rent, insurance, loan — counted once toward commitments, not everyday spending." }))),
-    errBox,
-    actions,
-  );
+  const amountField = field("Amount (RM)", amountI); amountField.appendChild(quick);
+  const card = el("div", {}, el("h2", { text: editing ? "Edit expense" : "New expense" }),
+    amountField, field("Category", catI), field("Date", dateI), field("Description (optional)", descI), errBox,
+    el("div", { className: "modal-actions" },
+      el("button", { className: "btn", onClick: closeModal }, "Cancel"),
+      el("button", { className: "btn primary", onClick: submit }, editing ? "Save" : "Add")));
 
   if (editing) {
-    const dupBtn = el("button", { className: "btn" }, "Duplicate");
-    dupBtn.onclick = () => {
+    const dup = el("button", { className: "btn" }, "Duplicate");
+    dup.onclick = () => {
       state.expenses.push({ id: uid(), amount: editing.amount, categoryId: editing.categoryId,
-        date: selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`,
-        description: editing.description || "", fixed: !!editing.fixed });
+        date: selectedMonth === monthKey(new Date()) ? todayISO() : `${selectedMonth}-01`, description: editing.description || "" });
       save(); closeModal(); render(); toast("Duplicated");
     };
-    const delBtn = el("button", { className: "btn danger" }, "Delete");
-    delBtn.onclick = () => { closeModal(); deleteExpenseWithUndo(editing.id); };
-    card.appendChild(el("div", { className: "modal-actions", style: "margin-top:10px;" }, dupBtn, delBtn));
+    const del = el("button", { className: "btn danger" }, "Delete");
+    del.onclick = () => { closeModal(); deleteExpenseWithUndo(editing.id); };
+    card.appendChild(el("div", { className: "modal-actions", style: "margin-top:10px" }, dup, del));
   }
   openModal(card);
 }
 
-function field(labelText, inputEl) {
-  return el("div", { className: "field" },
-    el("label", { text: labelText }), inputEl);
-}
-
-function canDeleteCategory(id) {
-  return !state.expenses.some((e) => e.categoryId === id);
-}
-
-function validateCategory({ name, budget }, existingId) {
-  const nm = (name || "").trim();
-  if (!nm) return { ok: false, field: "name", message: "Enter a name." };
-  const dup = state.categories.some((c) => c.id !== existingId && c.name.toLowerCase() === nm.toLowerCase());
-  if (dup) return { ok: false, field: "name", message: "That name is already used." };
-  const b = Number(budget);
-  if (budget === "" || !isFinite(b) || b < 0) return { ok: false, field: "budget", message: "Budget must be 0 or more." };
-  return { ok: true };
-}
-
-function validateCommitment({ name, amount }, existingId) {
-  const nm = (name || "").trim();
-  if (!nm) return { ok: false, message: "Enter a name." };
-  const dup = state.commitments.some((c) => c.id !== existingId && c.name.toLowerCase() === nm.toLowerCase());
-  if (dup) return { ok: false, message: "That name is already used." };
-  const a = Number(amount);
-  if (amount === "" || !isFinite(a) || a <= 0) return { ok: false, message: "Amount must be greater than 0." };
-  return { ok: true };
-}
-
-function exportBackup() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `expenses-backup-${todayISO()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function importBackup(file, onDone, onErr) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    let parsed;
-    try { parsed = JSON.parse(String(reader.result)); }
-    catch (e) { onErr("Couldn't read that file — is it a valid backup?"); return; }
-    const next = normalize(parsed);
-    if (!next.categories.length && !next.expenses.length && !next.commitments.length && !next.income) {
-      onErr("That file has no recognizable data."); return;
-    }
-    state = next;
-    save(); render();
-    onDone();
-  };
-  reader.onerror = () => onErr("Couldn't read that file.");
-  reader.readAsText(file);
-}
-
-let settingsView = "menu";
-
+/* ---------- settings ---------- */
 function openSettings(view) {
-  settingsView = view || "menu";
-  const msg = el("div", { className: "settings-msg" });
+  const msg = el("div", { className: "set-msg" });
   const card = el("div", {});
-  openSettingsInto(card, msg);
+  renderSettings(card, msg, typeof view === "string" ? view : null);
   openModal(card);
 }
-
-const SETTINGS_TITLES = {
-  categories: "Categories", bills: "Fixed bills", recurring: "Recurring",
-  quick: "Quick log", money: "Income & savings", backup: "Backup",
-};
-
-function openSettingsInto(card, msg) {
+function renderSettings(card, msg, scrollTo) {
   card.textContent = "";
-  const refresh = () => openSettingsInto(card, msg);
-  const go = (v) => { settingsView = v; refresh(); };
+  const refresh = () => renderSettings(card, msg, null);
+  card.appendChild(el("h2", { text: "Settings" }));
   const catOptions = (sel) => state.categories.map((c) => {
     const o = el("option", { value: c.id, text: (c.emoji ? c.emoji + " " : "") + c.name });
-    if (c.id === sel) o.selected = true;
-    return o;
+    if (c.id === sel) o.selected = true; return o;
   });
 
-  if (settingsView === "menu") {
-    card.appendChild(el("h2", { text: "Settings" }));
-    const item = (key, desc) => el("button", { className: "set-menu", onClick: () => go(key) },
-      el("span", {}, el("b", { text: SETTINGS_TITLES[key] }), el("span", { className: "smd", text: desc })),
-      el("span", { className: "smc", text: "›" }));
-    card.appendChild(item("categories", `${state.categories.length} · budgets & emoji`));
-    card.appendChild(item("bills", "Rent, insurance — forecast only"));
-    card.appendChild(item("recurring", "Netflix, gym — one tap to log"));
-    card.appendChild(item("quick", "One-tap chips on Overview"));
-    card.appendChild(item("money", "Income & savings goal"));
-    card.appendChild(item("backup", "Download or restore your data"));
-    card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px;" },
-      el("button", { className: "btn", onClick: closeModal }, "Done")));
-    card.appendChild(el("div", { className: "fc-note", style: "text-align:center;margin-top:14px;",
-      text: `Expenses ${APP_VERSION}` }));
-    return;
-  }
-
-  card.appendChild(el("button", { className: "set-back", onClick: () => go("menu") }, "‹ Settings"));
-  card.appendChild(el("h2", { text: SETTINGS_TITLES[settingsView] }));
-  const done = () => card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px;" },
-    el("button", { className: "btn", onClick: () => go("menu") }, "Back"),
-    el("button", { className: "btn primary", onClick: closeModal }, "Done")));
-
-  // ============ CATEGORIES ============
-  if (settingsView === "categories") {
-  state.categories.forEach((c) => {
-    const emojiI = el("input", { type: "text", value: c.emoji || "", placeholder: "🙂",
-      maxlength: "4", style: "flex:0 0 46px;width:46px;text-align:center;" });
-    const nameI = el("input", { type: "text", value: c.name });
-    const budI = el("input", { type: "number", step: "1", min: "0", value: String(c.budget) });
+  /* Categories */
+  card.appendChild(el("div", { className: "set-h", text: "Categories" }));
+  state.categories.forEach((c, ci) => {
+    const emI = el("input", { className: "em", type: "text", value: c.emoji || "", placeholder: "🙂", maxlength: "4" });
+    const nmI = el("input", { type: "text", value: c.name });
     const commit = () => {
-      const res = validateCategory({ name: nameI.value, budget: budI.value }, c.id);
-      if (!res.ok) { msg.textContent = res.message; nameI.value = c.name; budI.value = String(c.budget); return; }
-      msg.textContent = "";
-      c.name = nameI.value.trim();
-      c.budget = Number(budI.value);
-      c.emoji = emojiI.value.trim().slice(0, 4);
-      save(); render(); openSettingsInto(card, msg);
+      const nm = nmI.value.trim();
+      if (!nm) { msg.textContent = "Enter a name."; nmI.value = c.name; return; }
+      if (state.categories.some((x) => x.id !== c.id && x.name.toLowerCase() === nm.toLowerCase())) { msg.textContent = "That name is already used."; nmI.value = c.name; return; }
+      msg.textContent = ""; c.name = nm; c.emoji = emI.value.trim().slice(0, 4); save(); render(); refresh();
     };
-    nameI.onchange = commit;
-    budI.onchange = commit;
-    emojiI.onchange = commit;
+    nmI.onchange = commit; emI.onchange = commit;
+    const move = (d) => { const j = ci + d; if (j < 0 || j >= state.categories.length) return;
+      const a = state.categories; [a[ci], a[j]] = [a[j], a[ci]]; save(); render(); refresh(); };
+    const up = el("button", { className: "reorder", "aria-label": "Move up", onClick: () => move(-1) }, "↑");
+    const dn = el("button", { className: "reorder", "aria-label": "Move down", onClick: () => move(1) }, "↓");
+    if (ci === 0) up.disabled = true;
+    if (ci === state.categories.length - 1) dn.disabled = true;
 
-    const removeCategory = (reassignTo) => {
+    const del = el("button", { className: "del" }, "Delete");
+    const removeCat = (reassignTo) => {
       const affected = state.expenses.filter((e) => e.categoryId === c.id);
-      const prevIds = affected.map((e) => e.categoryId);
+      const prev = affected.map((e) => e.categoryId);
       affected.forEach((e) => { e.categoryId = reassignTo || ""; });
       const idx = state.categories.findIndex((x) => x.id === c.id);
       const removed = state.categories[idx];
@@ -1408,286 +728,139 @@ function openSettingsInto(card, msg) {
       save(); render(); refresh();
       toast(`Deleted ${removed.name}`, "Undo", () => {
         state.categories.splice(Math.min(idx, state.categories.length), 0, removed);
-        affected.forEach((e, i) => { e.categoryId = prevIds[i]; });
+        affected.forEach((e, i) => { e.categoryId = prev[i]; });
         save(); render(); refresh();
       });
     };
-
-    const del = el("button", {}, "Delete");
     del.onclick = () => {
       const n = state.expenses.filter((e) => e.categoryId === c.id).length;
-      if (n === 0) { removeCategory(null); return; }
-      const others = state.categories.filter((x) => x.id !== c.id);
-      const sel = el("select", {},
-        el("option", { value: "", text: "Leave uncategorized" }),
-        ...others.map((x) => el("option", { value: x.id, text: (x.emoji ? x.emoji + " " : "") + x.name })));
-      const prompt = el("div", { className: "reassign" },
-        el("div", { className: "fc-note", style: "margin:0 0 6px;",
-          text: `${n} expense${n === 1 ? "" : "s"} use ${c.name}. Move them to:` }),
-        el("div", { className: "r", style: "margin-bottom:8px;" }, sel),
+      if (n === 0) { removeCat(null); return; }
+      const sel = el("select", {}, el("option", { value: "", text: "Leave uncategorized" }),
+        ...state.categories.filter((x) => x.id !== c.id).map((x) => el("option", { value: x.id, text: (x.emoji ? x.emoji + " " : "") + x.name })));
+      del.closest(".row-edit").after(el("div", { className: "reassign" },
+        el("div", { className: "empty", style: "margin:0 0 6px", text: `${n} expense${n === 1 ? "" : "s"} use ${c.name}. Move them to:` }),
+        el("div", { className: "r", style: "margin-bottom:8px" }, sel),
         el("div", { className: "r" },
           el("button", { className: "btn", onClick: refresh }, "Cancel"),
-          el("button", { className: "btn danger",
-            onClick: () => removeCategory(sel.value || null) }, "Delete category")));
-      del.closest(".cat-edit").after(prompt);
+          el("button", { className: "btn danger", onClick: () => removeCat(sel.value || null) }, "Delete category"))));
       del.disabled = true;
     };
-
-    card.appendChild(el("div", { className: "cat-edit" }, emojiI, nameI, budI, del));
+    card.appendChild(el("div", { className: "row-edit" },
+      el("div", { className: "r" }, emI, nmI),
+      el("div", { className: "r" }, up, dn, el("span", { className: "grow" }), del)));
   });
-
-  const addEmoji = el("input", { type: "text", placeholder: "🙂", maxlength: "4", style: "flex:0 0 46px;width:46px;text-align:center;" });
-  const addName = el("input", { type: "text", placeholder: "New category" });
-  const addBud = el("input", { type: "number", step: "1", min: "0", placeholder: "Budget" });
-  const addBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
-  addBtn.onclick = () => {
-    const res = validateCategory({ name: addName.value, budget: addBud.value }, null);
-    if (!res.ok) { msg.textContent = res.message; return; }
-    msg.textContent = "";
-    state.categories.push({ id: uid(), name: addName.value.trim(), budget: Number(addBud.value), emoji: addEmoji.value.trim().slice(0, 4) });
-    save(); render(); openSettingsInto(card, msg);
-  };
-  card.appendChild(el("div", { className: "settings-add" }, addEmoji, addName, addBud, addBtn));
-  card.appendChild(msg);
-  done();
-  }
-
-  // ============ INCOME & SAVINGS ============
-  if (settingsView === "money") {
-  const incomeI = el("input", { type: "number", step: "1", min: "0",
-    value: state.income ? String(state.income) : "", placeholder: "Monthly income (RM)" });
-  incomeI.onchange = () => {
-    const v = Number(incomeI.value);
-    if (incomeI.value === "" ) { state.income = 0; msg.textContent = ""; save(); render(); refresh(); return; }
-    if (!isFinite(v) || v < 0) { msg.textContent = "Income must be 0 or more."; incomeI.value = state.income ? String(state.income) : ""; return; }
-    msg.textContent = ""; state.income = v; save(); render(); refresh();
-  };
-  card.appendChild(el("div", { className: "field" },
-    el("label", { text: "Monthly income (RM)" }), incomeI));
-
-  const goalI = el("input", { type: "number", step: "1", min: "0",
-    value: state.savingsGoal ? String(state.savingsGoal) : "", placeholder: "Monthly savings goal (RM)" });
-  goalI.onchange = () => {
-    if (goalI.value === "") { state.savingsGoal = 0; msg.textContent = ""; save(); render(); refresh(); return; }
-    const v = Number(goalI.value);
-    if (!isFinite(v) || v < 0) { msg.textContent = "Savings goal must be 0 or more."; goalI.value = state.savingsGoal ? String(state.savingsGoal) : ""; return; }
-    msg.textContent = ""; state.savingsGoal = v; save(); render(); refresh();
-  };
-  card.appendChild(el("div", { className: "field" },
-    el("label", { text: "Monthly savings goal (RM)" }), goalI));
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Used for the forecast on the Overview tab. The savings goal reserves that amount before working out what's safe to spend." }));
-  card.appendChild(msg);
-  done();
-  }
-
-  // ============ FIXED BILLS (commitments) ============
-  if (settingsView === "bills") {
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Rent, insurance, subscriptions. Subtracted in your forecast — NOT added to your expense list. Tick “Varies each month” for bills that change (electricity); you then set each month's amount on the Overview forecast." }));
-
-  state.commitments.forEach((c) => {
-    const nameI = el("input", { type: "text", value: c.name });
-    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(c.amount), style: "flex:0 0 90px;width:90px;" });
-    const commit = () => {
-      const res = validateCommitment({ name: nameI.value, amount: amtI.value }, c.id);
-      if (!res.ok) { msg.textContent = res.message; nameI.value = c.name; amtI.value = String(c.amount); return; }
-      msg.textContent = "";
-      c.name = nameI.value.trim(); c.amount = Number(amtI.value);
-      save(); render(); refresh();
-    };
-    nameI.onchange = commit; amtI.onchange = commit;
-
-    const variesBox = el("input", { type: "checkbox", style: "flex:0 0 auto;min-height:0;width:18px;height:18px;" });
-    variesBox.checked = !!c.varies;
-    variesBox.onchange = () => { c.varies = variesBox.checked; if (!c.varies) c.byMonth = {}; save(); render(); refresh(); };
-
-    const del = el("button", {}, "Delete");
-    del.onclick = () => {
-      const idx = state.commitments.findIndex((x) => x.id === c.id);
-      const removed = state.commitments[idx];
-      state.commitments.splice(idx, 1);
-      save(); render(); refresh();
-      toast(`Deleted ${removed.name}`, "Undo", () => {
-        state.commitments.splice(Math.min(idx, state.commitments.length), 0, removed);
-        save(); render(); refresh();
-      });
-    };
-    card.appendChild(el("div", { className: "rec-edit" },
-      el("div", { className: "r" }, nameI, amtI),
-      el("div", { className: "r" },
-        el("label", { className: "vary-lbl" }, variesBox, el("span", { text: "Varies each month" })),
-        del)));
-  });
-
-  const cName = el("input", { type: "text", placeholder: "e.g. Rent, Insurance" });
-  const cAmt = el("input", { type: "number", step: "1", min: "0", placeholder: "Amount (RM)" });
-  const cAdd = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
-  cAdd.onclick = () => {
-    const res = validateCommitment({ name: cName.value, amount: cAmt.value }, null);
-    if (!res.ok) { msg.textContent = res.message; return; }
-    msg.textContent = "";
-    state.commitments.push({ id: uid(), name: cName.value.trim(), amount: Number(cAmt.value), varies: false, byMonth: {} });
+  const aEm = el("input", { className: "em", type: "text", placeholder: "🙂", maxlength: "4" });
+  const aNm = el("input", { type: "text", placeholder: "New category" });
+  const aBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px" }, "Add");
+  aBtn.onclick = () => {
+    const nm = aNm.value.trim();
+    if (!nm) { msg.textContent = "Enter a name."; return; }
+    if (state.categories.some((x) => x.name.toLowerCase() === nm.toLowerCase())) { msg.textContent = "That name is already used."; return; }
+    msg.textContent = ""; state.categories.push({ id: uid(), name: nm, emoji: aEm.value.trim().slice(0, 4) });
     save(); render(); refresh();
   };
-  card.appendChild(el("div", { className: "settings-add" }, cName, cAmt, cAdd));
-  card.appendChild(msg);
-  done();
-  }
+  card.appendChild(el("div", { className: "add-row" }, aEm, aNm, aBtn));
 
-  // ============ RECURRING ============
-  if (settingsView === "recurring") {
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Regular expenses you DO want in your history — Netflix, gym, etc. Each month the Expenses tab shows a one-tap “Add” for any you haven't logged yet. Set the day it's usually due." }));
-
-  state.recurring.forEach((r) => {
-    const nameI = el("input", { type: "text", value: r.name });
-    const amtI = el("input", { type: "number", step: "1", min: "0", value: String(r.amount), style: "flex:0 0 90px;width:90px;" });
-    const catI = el("select", {}, ...catOptions(r.categoryId));
-    const dayI = el("input", { type: "number", min: "1", max: "28", value: String(r.day || 1), style: "flex:0 0 64px;width:64px;" });
-    const commit = () => {
-      const res = validateRecurring({ name: nameI.value, amount: amtI.value }, r.id);
-      if (!res.ok) { msg.textContent = res.message; nameI.value = r.name; amtI.value = String(r.amount); return; }
-      msg.textContent = "";
-      r.name = nameI.value.trim(); r.amount = Number(amtI.value);
-      r.categoryId = catI.value; r.day = Math.min(28, Math.max(1, parseInt(dayI.value, 10) || 1));
-      dayI.value = String(r.day);
-      save(); render(); refresh();
-    };
-    [nameI, amtI, catI, dayI].forEach((x) => x.onchange = commit);
-    const del = el("button", {}, "Delete");
-    del.onclick = () => {
-      const idx = state.recurring.findIndex((x) => x.id === r.id);
-      const removed = state.recurring[idx];
-      state.recurring.splice(idx, 1);
-      save(); render(); refresh();
-      toast(`Deleted ${removed.name}`, "Undo", () => {
-        state.recurring.splice(Math.min(idx, state.recurring.length), 0, removed);
-        save(); render(); refresh();
-      });
-    };
-    card.appendChild(el("div", { className: "rec-edit" },
-      el("div", { className: "r" }, nameI, amtI),
-      el("div", { className: "r" }, catI, el("span", { className: "day-lbl", text: "day" }), dayI, del)));
-  });
-
-  const rName = el("input", { type: "text", placeholder: "e.g. Netflix, Gym" });
-  const rAmt = el("input", { type: "number", step: "1", min: "0", placeholder: "Amount" });
-  const rCat = el("select", {}, ...catOptions(state.categories[0] && state.categories[0].id));
-  const rDay = el("input", { type: "number", min: "1", max: "28", value: "1", style: "flex:0 0 64px;width:64px;" });
-  const rAdd = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
-  rAdd.onclick = () => {
-    const res = validateRecurring({ name: rName.value, amount: rAmt.value }, null);
-    if (!res.ok) { msg.textContent = res.message; return; }
-    if (state.categories.length === 0) { msg.textContent = "Add a category first."; return; }
-    msg.textContent = "";
-    state.recurring.push({ id: uid(), name: rName.value.trim(), amount: Number(rAmt.value),
-      categoryId: rCat.value, day: Math.min(28, Math.max(1, parseInt(rDay.value, 10) || 1)) });
-    save(); render(); refresh();
-  };
-  card.appendChild(el("div", { className: "rec-edit" },
-    el("div", { className: "r" }, rName, rAmt),
-    el("div", { className: "r" }, rCat, el("span", { className: "day-lbl", text: "day" }), rDay, rAdd)));
-  card.appendChild(msg);
-  done();
-  }
-
-  // ============ QUICK LOG ============
-  if (settingsView === "quick") {
-  card.appendChild(el("div", { className: "fc-note",
-    text: "One-tap chips at the top of Overview for your regulars (lunch, petrol). A tap logs it for today; long-press to adjust first. Use ↑ ↓ to reorder." }));
-
+  /* Quick log */
+  const qh = el("div", { className: "set-h", text: "Quick log" });
+  card.appendChild(qh);
+  card.appendChild(el("div", { className: "empty", style: "margin:-4px 0 4px",
+    text: "One-tap chips on the Overview tab for your regulars (lunch, petrol, rent). Long-press a chip to adjust before adding." }));
   state.quick.forEach((q, qi) => {
-    const labI = el("input", { type: "text", value: q.label });
-    const amtI = el("input", { type: "number", step: "0.01", min: "0", value: String(q.amount), style: "flex:0 0 90px;width:90px;" });
-    const catI = el("select", {}, ...catOptions(q.categoryId));
+    const lbI = el("input", { type: "text", value: q.label });
+    const amI = el("input", { className: "am", type: "number", step: "0.01", min: "0", value: String(q.amount) });
+    const ctI = el("select", {}, ...catOptions(q.categoryId));
     const commit = () => {
-      const nm = labI.value.trim(), a = Number(amtI.value);
-      if (!nm || !isFinite(a) || a <= 0) { msg.textContent = "Enter a label and an amount above 0."; labI.value = q.label; amtI.value = String(q.amount); return; }
-      msg.textContent = "";
-      q.label = nm; q.amount = Math.round(a * 100) / 100; q.categoryId = catI.value;
-      save(); render(); refresh();
+      const nm = lbI.value.trim(), a = Number(amI.value);
+      if (!nm || !isFinite(a) || a <= 0) { msg.textContent = "Enter a label and an amount above 0."; lbI.value = q.label; amI.value = String(q.amount); return; }
+      msg.textContent = ""; q.label = nm; q.amount = Math.round(a * 100) / 100; q.categoryId = ctI.value; save(); render(); refresh();
     };
-    [labI, amtI, catI].forEach((x) => x.onchange = commit);
-    const move = (dir) => {
-      const j = qi + dir;
-      if (j < 0 || j >= state.quick.length) return;
-      const arr = state.quick;
-      [arr[qi], arr[j]] = [arr[j], arr[qi]];
-      save(); render(); refresh();
-    };
+    [lbI, amI, ctI].forEach((x) => x.onchange = commit);
+    const move = (d) => { const j = qi + d; if (j < 0 || j >= state.quick.length) return;
+      const a = state.quick; [a[qi], a[j]] = [a[j], a[qi]]; save(); render(); refresh(); };
     const up = el("button", { className: "reorder", "aria-label": "Move up", onClick: () => move(-1) }, "↑");
-    const down = el("button", { className: "reorder", "aria-label": "Move down", onClick: () => move(1) }, "↓");
+    const dn = el("button", { className: "reorder", "aria-label": "Move down", onClick: () => move(1) }, "↓");
     if (qi === 0) up.disabled = true;
-    if (qi === state.quick.length - 1) down.disabled = true;
-    const del = el("button", {}, "Delete");
+    if (qi === state.quick.length - 1) dn.disabled = true;
+    const del = el("button", { className: "del" }, "Delete");
     del.onclick = () => {
       const idx = state.quick.findIndex((x) => x.id === q.id);
       const removed = state.quick[idx];
-      state.quick.splice(idx, 1);
-      save(); render(); refresh();
-      toast(`Deleted ${removed.label}`, "Undo", () => {
-        state.quick.splice(Math.min(idx, state.quick.length), 0, removed);
-        save(); render(); refresh();
-      });
+      state.quick.splice(idx, 1); save(); render(); refresh();
+      toast(`Deleted ${removed.label}`, "Undo", () => { state.quick.splice(Math.min(idx, state.quick.length), 0, removed); save(); render(); refresh(); });
     };
-    card.appendChild(el("div", { className: "rec-edit" },
-      el("div", { className: "r" }, labI, amtI),
-      el("div", { className: "r" }, catI, up, down, del)));
+    card.appendChild(el("div", { className: "row-edit" },
+      el("div", { className: "r" }, lbI, amI),
+      el("div", { className: "r" }, ctI, up, dn, del)));
   });
-
-  const qLab = el("input", { type: "text", placeholder: "e.g. Lunch, Petrol" });
-  const qAmt = el("input", { type: "number", step: "0.01", min: "0", placeholder: "Amount" });
-  const qCat = el("select", {}, ...catOptions(state.categories[0] && state.categories[0].id));
-  const qAdd = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px;" }, "Add");
-  qAdd.onclick = () => {
-    const nm = qLab.value.trim(), a = Number(qAmt.value);
+  const qL = el("input", { type: "text", placeholder: "e.g. Lunch, Petrol" });
+  const qA = el("input", { type: "number", step: "0.01", min: "0", placeholder: "Amount" });
+  const qC = el("select", {}, ...catOptions(state.categories[0] && state.categories[0].id));
+  const qBtn = el("button", { className: "btn primary", style: "min-height:44px;flex:0 0 auto;padding:0 14px" }, "Add");
+  qBtn.onclick = () => {
+    const nm = qL.value.trim(), a = Number(qA.value);
     if (!nm || !isFinite(a) || a <= 0) { msg.textContent = "Enter a label and an amount above 0."; return; }
     if (state.categories.length === 0) { msg.textContent = "Add a category first."; return; }
-    msg.textContent = "";
-    state.quick.push({ id: uid(), label: nm, amount: Math.round(a * 100) / 100, categoryId: qCat.value });
+    msg.textContent = ""; state.quick.push({ id: uid(), label: nm, amount: Math.round(a * 100) / 100, categoryId: qC.value });
     save(); render(); refresh();
   };
-  card.appendChild(el("div", { className: "rec-edit" },
-    el("div", { className: "r" }, qLab, qAmt),
-    el("div", { className: "r" }, qCat, qAdd)));
-  card.appendChild(msg);
-  done();
-  }
+  card.appendChild(el("div", { className: "row-edit" }, el("div", { className: "r" }, qL, qA), el("div", { className: "r" }, qC, qBtn)));
 
-  // ============ BACKUP ============
-  if (settingsView === "backup") {
-  card.appendChild(el("div", { className: "fc-note",
-    text: "Your data lives only in this browser. Download a backup now and again, and after switching phone or browser use Restore to bring it back." }));
-  const dl = el("button", { className: "btn", style: "width:100%;margin:6px 0 12px;",
-    onClick: exportBackup }, "Download backup");
-  card.appendChild(dl);
-
-  const fileInput = el("input", { type: "file", accept: "application/json,.json" });
+  /* Backup */
+  const bh = el("div", { className: "set-h", text: "Backup" });
+  card.appendChild(bh);
+  card.appendChild(el("div", { className: "empty", style: "margin:-4px 0 8px",
+    text: "Your data lives only in this browser. Download a backup now and again; use Restore after switching phone or browser." }));
+  card.appendChild(el("button", { className: "btn", style: "width:100%;margin-bottom:10px", onClick: exportBackup }, "Download backup"));
+  const fileI = el("input", { type: "file", accept: "application/json,.json" });
   const restoreArea = el("div", {});
-  const setRestoreNote = (t) => { restoreArea.textContent = ""; restoreArea.appendChild(el("div", { className: "fc-note", text: t })); };
-  setRestoreNote("Restoring replaces all current data.");
-  fileInput.onchange = () => {
-    const file = fileInput.files && fileInput.files[0];
+  restoreArea.appendChild(el("div", { className: "empty", style: "margin-top:6px", text: "Restoring replaces everything here." }));
+  fileI.onchange = () => {
+    const file = fileI.files && fileI.files[0];
     if (!file) return;
     restoreArea.textContent = "";
-    restoreArea.appendChild(el("div", { className: "fc-note", text: `Replace all current data with "${file.name}"?` }));
-    const errLine = el("div", { className: "settings-msg" });
+    const errLine = el("div", { className: "set-msg" });
+    restoreArea.appendChild(el("div", { className: "empty", style: "margin:6px 0", text: `Replace everything with "${file.name}"?` }));
     restoreArea.appendChild(errLine);
-    restoreArea.appendChild(el("div", { className: "modal-actions", style: "margin-top:8px;" },
-      el("button", { className: "btn", onClick: () => { fileInput.value = ""; refresh(); } }, "Cancel"),
-      el("button", { className: "btn danger", onClick: () => {
-        importBackup(file, () => { closeModal(); openSettings("backup"); }, (err) => { errLine.textContent = err; });
-      } }, "Replace all data")));
+    restoreArea.appendChild(el("div", { className: "modal-actions", style: "margin-top:8px" },
+      el("button", { className: "btn", onClick: () => { fileI.value = ""; refresh(); } }, "Cancel"),
+      el("button", { className: "btn danger", onClick: () => importBackup(file, () => { closeModal(); openSettings("backup"); }, (e) => { errLine.textContent = e; }) }, "Replace")));
   };
-  card.appendChild(el("div", { className: "field" },
-    el("label", { text: "Restore from a backup file" }), fileInput));
+  card.appendChild(field("Restore from a backup file", fileI));
   card.appendChild(restoreArea);
+
   card.appendChild(msg);
-  done();
+  card.appendChild(el("div", { className: "modal-actions", style: "margin-top:16px" }, el("button", { className: "btn", onClick: closeModal }, "Done")));
+  card.appendChild(el("div", { className: "set-ver", text: `Expenses ${APP_VERSION}` }));
+
+  if (scrollTo) {
+    const target = scrollTo === "quick" ? qh : scrollTo === "backup" ? bh : null;
+    if (target) requestAnimationFrame(() => target.scrollIntoView());
   }
 }
 
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `expenses-backup-${todayISO()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function importBackup(file, onDone, onErr) {
+  const r = new FileReader();
+  r.onload = () => {
+    let parsed;
+    try { parsed = JSON.parse(String(r.result)); } catch (e) { onErr("Couldn't read that file — is it a valid backup?"); return; }
+    const next = normalize(parsed);
+    if (!next.categories.length && !next.expenses.length) { onErr("That file has no recognizable data."); return; }
+    state = next; save(); render(); onDone();
+  };
+  r.onerror = () => onErr("Couldn't read that file.");
+  r.readAsText(file);
+}
+
+/* ---------- start ---------- */
 load();
 selectedMonth = monthKey(new Date());
 if (!storageAvailable) document.getElementById("storage-notice").hidden = false;
@@ -1696,18 +869,12 @@ render();
 if ("serviceWorker" in navigator) {
   let didReload = false;
   const hadController = !!navigator.serviceWorker.controller;
-  const safeReload = () => {
-    if (didReload) return;
-    // don't yank the page out from under an open form
-    if (modal() && !modal().hidden) return;
-    didReload = true;
-    location.reload();
-  };
+  const safeReload = () => { if (didReload) return; if (modal() && !modal().hidden) return; didReload = true; location.reload(); };
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController) safeReload(); });
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").then((reg) => {
       reg.update();
-      setInterval(() => reg.update(), 60 * 60 * 1000);
+      setInterval(() => reg.update(), 3600000);
       reg.addEventListener("updatefound", () => {
         const nw = reg.installing;
         if (nw) nw.addEventListener("statechange", () => {
