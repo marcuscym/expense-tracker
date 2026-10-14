@@ -80,6 +80,31 @@
   .btn.pri{background:var(--accent); color:#fff; border-color:transparent}
   .btn.dng{color:var(--danger); border-color:var(--danger); background:none}
 
+
+  .seg{display:flex; background:var(--field); border-radius:13px; padding:3px; margin-bottom:12px}
+  .seg button{flex:1; height:40px; border:none; border-radius:10px; background:none; color:var(--muted); font-weight:600}
+  .seg button.on{background:var(--card); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.14)}
+  .chead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+  .chead b{font-size:17px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .mini{height:34px; padding:0 14px; border-radius:9px; border:1px solid var(--line); background:none; color:var(--accent); font-weight:600}
+  @media (prefers-color-scheme:dark){ .mini{color:#CECBF6} }
+  .lbl2{font-size:12px; color:var(--muted)}
+  .owed{font-size:30px; font-weight:600; letter-spacing:-.4px; margin:0 0 8px}
+  .owed.cr{color:var(--good)}
+  .ctrack{height:8px; border-radius:99px; background:var(--field); overflow:hidden}
+  .ctrack i{display:block; height:100%; width:0; border-radius:99px; background:var(--accent); transition:width .2s}
+  .ctrack.warn i{background:#EF9F27} .ctrack.over i{background:#E24B4A}
+  .due{font-size:13px; color:var(--text); margin-top:8px; font-weight:500}
+  .addbox{border-top:1px solid var(--line); margin-top:14px; padding-top:12px}
+  .meta2{display:flex; gap:8px; align-items:center; padding:5px 0 0}
+  .meta2 .dt{height:36px; border-radius:9px; border:1px solid var(--line); background:var(--field); color:var(--text); padding:0 8px; font-size:14px}
+  .kind{height:36px; padding:0 14px; border-radius:99px; border:1px solid var(--line); background:none; color:var(--muted); font-size:13px; font-weight:600}
+  .kind.pay{background:var(--good); color:#fff; border-color:transparent}
+  .cedit{background:var(--field); border-radius:12px; padding:12px; margin:4px 0 12px}
+  .cedit label{display:block; margin-bottom:10px}
+  .cedit label span{display:block; font-size:12px; color:var(--muted); margin-bottom:4px}
+  .cedit input{width:100%; height:44px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); padding:0 11px; font-size:16px}
+
   .hist{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left;
         background:none; border:none; border-top:1px solid var(--line); padding:11px 2px; color:inherit}
   .hist:first-of-type{border-top:none}
@@ -117,7 +142,7 @@
 <script>
 "use strict";
 
-const APP_VERSION = "v24";
+const APP_VERSION = "v25";
 const KEY = "budget-sheet-v2";
 const OLD_KEY = "expense-tracker-v1";   // earlier app's data: read once, never modified
 let storageOK = true;
@@ -125,6 +150,11 @@ let state;
 let selectedMonth;
 let justAddedId = null;
 let ui = {};
+let page = "budget";
+try { if (localStorage.getItem("budget-page") === "cards") page = "cards"; } catch (e) {}
+const editing = new Set();      // card ids whose settings are open
+const showAllFor = new Set();   // card ids showing their full history
+let cardRefs = {}, cardsHero = null;
 
 /* ---------- small helpers ---------- */
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
@@ -136,6 +166,8 @@ const fmtMonthShort = (k) => { const [y, m] = parseKey(k); return new Date(y, m 
 const shiftMonth = (k, d) => { const [y, m] = parseKey(k); return monthKey(new Date(y, m - 1 + d, 1)); };
 const nf = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (n) => "RM " + nf.format(n);
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const fmtDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-US", { day: "numeric", month: "short" }); };
 
 function el(tag, props, ...kids) {
   const n = document.createElement(tag);
@@ -156,8 +188,9 @@ const terms = (expr) => String(expr || "").replace(/,/g, "").match(NUM) || [];
 const evalExpr = (expr) => Math.round(terms(expr).reduce((t, x) => t + parseFloat(x), 0) * 100) / 100;
 
 /* ---------- data ---------- */
-const emptyState = () => ({ version: 2, salary: {}, months: {} });
+const emptyState = () => ({ version: 2, salary: {}, months: {}, cards: [] });
 const isKey = (k) => /^\d{4}-\d{2}$/.test(k);
+const isDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
 
 function normV2(obj) {
   const s = emptyState();
@@ -169,6 +202,17 @@ function normV2(obj) {
       s.months[k] = arr.filter((l) => l && typeof l === "object")
         .map((l) => ({ id: typeof l.id === "string" ? l.id : uid(), label: String(l.label || "").slice(0, 60), expr: String(l.expr || "").slice(0, 200) }));
     }
+  if (Array.isArray(obj.cards))
+    s.cards = obj.cards.filter((c) => c && typeof c === "object").map((c) => ({
+      id: typeof c.id === "string" ? c.id : uid(),
+      name: String(c.name || "Card").slice(0, 40),
+      limit: Number.isFinite(Number(c.limit)) && Number(c.limit) > 0 ? Number(c.limit) : 0,
+      due: Math.min(31, Math.max(0, parseInt(c.due, 10) || 0)),
+      entries: (Array.isArray(c.entries) ? c.entries : []).filter((e) => e && typeof e === "object" && Number.isFinite(Number(e.amount)))
+        .map((e) => ({ id: typeof e.id === "string" ? e.id : uid(), date: isDay(e.date) ? e.date : todayISO(),
+          kind: e.kind === "payment" ? "payment" : "charge", label: String(e.label || "").slice(0, 60),
+          amount: Math.round(Math.abs(Number(e.amount)) * 100) / 100 })),
+    }));
   return s;
 }
 
@@ -265,6 +309,8 @@ function render() {
   justAddedId = null;
   const root = document.getElementById("content");
   root.textContent = "";
+  root.appendChild(switcher());
+  if (page === "cards") { ui = {}; cardsPage(root); refreshLabels(); return; }
   root.appendChild(header());
   root.appendChild(summary());
   root.appendChild(sheet());
@@ -419,6 +465,165 @@ function refreshLabels() {
   [...count].sort((a, b) => b[1] - a[1]).slice(0, 40).forEach(([t]) => dl.appendChild(el("option", { value: t })));
 }
 
+/* ---------- page switcher ---------- */
+function switcher() {
+  const tab = (id, label) => el("button", { className: page === id ? "on" : "",
+    onClick: () => { if (page === id) return; page = id; try { localStorage.setItem("budget-page", id); } catch (e) {} render(); window.scrollTo(0, 0); } }, label);
+  return el("div", { className: "seg" }, tab("budget", "Budget"), tab("cards", "Cards"));
+}
+
+/* ---------- credit cards ---------- */
+/* Separate from the monthly sheet on purpose: this only tracks what you owe each bank. */
+const owedCents = (c) => c.entries.reduce((t, e) => t + (e.kind === "payment" ? -1 : 1) * Math.round(e.amount * 100), 0);
+
+function dueText(c) {
+  if (!c.due) return "";
+  const now = new Date(), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mk = (y, m) => new Date(y, m, Math.min(c.due, new Date(y, m + 1, 0).getDate()));
+  let d = mk(t0.getFullYear(), t0.getMonth());
+  if (d < t0) d = mk(t0.getFullYear(), t0.getMonth() + 1);
+  const days = Math.round((d - t0) / 86400000);
+  const when = d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+  return days === 0 ? `Payment due today (${when})` : `Next payment due ${when} · in ${days} day${days === 1 ? "" : "s"}`;
+}
+
+function updateCards() {
+  let owedAll = 0, owedLim = 0, limAll = 0;
+  state.cards.forEach((c) => {
+    const o = owedCents(c), lim = Math.round(c.limit * 100), r = cardRefs[c.id];
+    owedAll += Math.max(0, o);
+    if (lim > 0) { limAll += lim; owedLim += Math.max(0, o); }
+    if (!r) return;
+    r.owed.textContent = o < 0 ? `Credit ${money(-o / 100)}` : money(o / 100);
+    r.owed.classList.toggle("cr", o < 0);
+    r.due.textContent = o > 0 ? dueText(c) : ""; r.due.hidden = !(o > 0 && c.due);
+    r.name.textContent = c.name;
+    if (lim > 0) {
+      const p = Math.max(0, o) / lim;
+      r.track.hidden = false; r.use.hidden = false;
+      r.bar.style.width = Math.min(100, Math.round(p * 100)) + "%";
+      r.track.className = "ctrack" + (p > 1 ? " over" : p >= 0.8 ? " warn" : "");
+      r.use.textContent = `${Math.round(p * 100)}% of ${money(c.limit)} used · ` +
+        (o > lim ? `over the limit by ${money((o - lim) / 100)}` : `${money((lim - Math.max(0, o)) / 100)} available`);
+    } else { r.track.hidden = true; r.use.hidden = true; }
+  });
+  if (cardsHero) {
+    cardsHero.big.textContent = money(owedAll / 100);
+    cardsHero.sub.textContent = limAll > 0
+      ? `${Math.round((owedLim / limAll) * 100)}% of your ${money(limAll / 100)} total limit used`
+      : state.cards.length ? "Add a credit limit to a card to see how much you've used" : "";
+  }
+}
+
+function cardsPage(root) {
+  cardRefs = {};
+  cardsHero = { big: el("div", { className: "big" }), sub: el("div", { className: "pct", style: "margin:0" }) };
+  root.appendChild(el("div", { className: "hero" }, el("div", { className: "lbl", text: "Owed across your cards" }), cardsHero.big, cardsHero.sub));
+
+  if (state.cards.length === 0)
+    root.appendChild(el("div", { className: "card" }, el("div", { className: "empty" },
+      el("p", { text: "Add a card to start. Log each charge when you swipe, and each payment when you pay the bill — it tracks what you still owe." }))));
+  state.cards.forEach((c) => root.appendChild(cardBlock(c)));
+
+  const nm = el("input", { type: "text", placeholder: "Card name (e.g. Maybank Visa)", maxlength: "40", autocomplete: "off", "aria-label": "Card name" });
+  const addCard = () => {
+    const name = nm.value.trim();
+    if (!name) { nm.focus(); return; }
+    state.cards.push({ id: uid(), name, limit: 0, due: 0, entries: [] });
+    save(); editing.add(state.cards[state.cards.length - 1].id); render();
+    toast("Card added — set its limit and due day if you like");
+  };
+  nm.onkeydown = (e) => { if (e.key === "Enter") addCard(); };
+  root.appendChild(el("div", { className: "card" }, el("h3", { text: "ADD A CARD" }),
+    el("div", { className: "line" }, nm, el("button", { className: "btn pri", style: "flex:0 0 auto;min-height:46px", onClick: addCard }, "Add"))));
+  updateCards();
+}
+
+function cardBlock(c) {
+  const r = cardRefs[c.id] = {};
+  const box = el("div", { className: "card" });
+  r.name = el("b", { text: c.name });
+  const open = editing.has(c.id);
+  box.appendChild(el("div", { className: "chead" }, r.name,
+    el("button", { className: "mini", onClick: () => { if (open) editing.delete(c.id); else editing.add(c.id); render(); } }, open ? "Done" : "Edit")));
+
+  if (open) {
+    const nameIn = el("input", { type: "text", value: c.name, maxlength: "40", "aria-label": "Card name" });
+    nameIn.oninput = () => { c.name = nameIn.value.trim() || "Card"; save(); updateCards(); };
+    const limIn = el("input", { type: "text", inputmode: "decimal", placeholder: "No limit set", value: c.limit > 0 ? String(c.limit) : "", "aria-label": "Credit limit" });
+    limIn.oninput = () => { c.limit = Math.max(0, evalExpr(limIn.value)); save(); updateCards(); };
+    const dueIn = el("input", { type: "text", inputmode: "numeric", placeholder: "e.g. 25", maxlength: "2", value: c.due > 0 ? String(c.due) : "", "aria-label": "Payment due day of month" });
+    dueIn.oninput = () => { c.due = Math.min(31, Math.max(0, parseInt(dueIn.value, 10) || 0)); save(); updateCards(); };
+    const del = el("button", { className: "btn dng", style: "width:100%;margin-top:10px", onClick: () => {
+      const i = state.cards.findIndex((z) => z.id === c.id), removed = state.cards.splice(i, 1)[0];
+      editing.delete(c.id); save(); render();
+      toast(`Deleted ${removed.name}`, "Undo", () => { state.cards.splice(Math.min(i, state.cards.length), 0, removed); save(); render(); });
+    } }, "Delete this card");
+    box.appendChild(el("div", { className: "cedit" },
+      el("label", {}, el("span", { text: "Name" }), nameIn),
+      el("label", {}, el("span", { text: "Credit limit (RM)" }), limIn),
+      el("label", {}, el("span", { text: "Payment due day of month" }), dueIn), del));
+  }
+
+  r.owed = el("div", { className: "owed" });
+  r.bar = el("i"); r.track = el("div", { className: "ctrack" }, r.bar);
+  r.use = el("div", { className: "hint", style: "padding:6px 0 0" });
+  r.due = el("div", { className: "due" });
+  box.appendChild(el("div", { className: "lbl2", text: "Owed now" }));
+  box.appendChild(r.owed); box.appendChild(r.track); box.appendChild(r.use); box.appendChild(r.due);
+
+  /* quick add */
+  const lb = el("input", { className: "lb", type: "text", placeholder: "What for? (optional)", maxlength: "60", autocomplete: "off", "data-add": c.id, "aria-label": "What for" });
+  const am = el("input", { className: "am", type: "text", inputmode: "decimal", placeholder: "0.00", autocomplete: "off", "aria-label": "Amount" });
+  const add = (kind) => {
+    const amt = Math.abs(evalExpr(am.value));
+    if (!(amt > 0)) { am.focus(); toast("Enter an amount first"); return; }
+    c.entries.push({ id: uid(), date: todayISO(), kind, label: lb.value.trim(), amount: amt });
+    save(); render();
+    toast(kind === "payment" ? `Payment of ${money(amt)} logged` : `Charge of ${money(amt)} logged`);
+    const f = document.querySelector(`input[data-add="${c.id}"]`); if (f) f.focus();
+  };
+  lb.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); am.focus(); } };
+  am.onkeydown = (e) => { if (e.key === "Enter") add("charge"); };
+  box.appendChild(el("div", { className: "addbox" },
+    el("div", { className: "line" }, lb, am),
+    el("div", { className: "row2", style: "margin:8px 0 0" },
+      el("button", { className: "btn pri", onClick: () => add("charge") }, "＋ Charge"),
+      el("button", { className: "btn", onClick: () => add("payment") }, "− Payment"))));
+
+  /* history */
+  const list = c.entries.map((e, i) => ({ e, i })).sort((a, b) => (a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : b.i - a.i)).map((x) => x.e);
+  if (list.length) {
+    const all = showAllFor.has(c.id), shown = all ? list : list.slice(0, 6);
+    box.appendChild(el("h3", { style: "margin:16px 0 4px", text: "HISTORY" }));
+    shown.forEach((e) => box.appendChild(entryRow(c, e)));
+    if (list.length > 6) box.appendChild(el("button", { className: "add", style: "height:40px;border-style:solid", onClick: () => { if (all) showAllFor.delete(c.id); else showAllFor.add(c.id); render(); } },
+      all ? "Show fewer" : `Show all ${list.length}`));
+  }
+  return box;
+}
+
+function entryRow(c, e) {
+  const lb = el("input", { className: "lb", type: "text", value: e.label, placeholder: e.kind === "payment" ? "Payment" : "What for?", maxlength: "60", autocomplete: "off", "aria-label": "What for" });
+  const am = el("input", { className: "am", type: "text", inputmode: "decimal", value: String(e.amount), autocomplete: "off", "aria-label": "Amount" });
+  const dt = el("input", { className: "dt", type: "date", value: e.date, "aria-label": "Date" });
+  const kind = el("button", { className: "kind" + (e.kind === "payment" ? " pay" : "") }, e.kind === "payment" ? "Payment" : "Charge");
+  lb.oninput = () => { e.label = lb.value; save(); };
+  am.oninput = () => { e.amount = Math.round(Math.abs(evalExpr(am.value)) * 100) / 100; save(); updateCards(); };
+  dt.onchange = () => { if (isDay(dt.value)) { e.date = dt.value; save(); } };
+  kind.onclick = () => {
+    e.kind = e.kind === "payment" ? "charge" : "payment";
+    kind.textContent = e.kind === "payment" ? "Payment" : "Charge"; kind.classList.toggle("pay", e.kind === "payment");
+    lb.placeholder = e.kind === "payment" ? "Payment" : "What for?"; save(); updateCards();
+  };
+  const del = el("button", { className: "x", "aria-label": "Delete entry", onClick: () => {
+    const i = c.entries.findIndex((z) => z.id === e.id), removed = c.entries.splice(i, 1)[0];
+    save(); render();
+    toast("Entry deleted", "Undo", () => { c.entries.splice(Math.min(i, c.entries.length), 0, removed); save(); render(); });
+  } }, "×");
+  return el("div", { className: "lw" }, el("div", { className: "line" }, lb, am, del), el("div", { className: "meta2" }, dt, kind));
+}
+
 /* ---------- settings / backup / updates ---------- */
 const modal = () => document.getElementById("modal");
 function closeModal() { modal().hidden = true; modal().firstChild.textContent = ""; document.body.style.overflow = ""; }
@@ -482,7 +687,7 @@ function importBackup(file, ok, bad) {
     let parsed;
     try { parsed = JSON.parse(String(r.result)); } catch (e) { bad("That isn't a valid backup file."); return; }
     const next = normalize(parsed);
-    if (Object.keys(next.months).length === 0 && Object.keys(next.salary).length === 0) { bad("That file has no recognisable data."); return; }
+    if (Object.keys(next.months).length === 0 && Object.keys(next.salary).length === 0 && next.cards.length === 0) { bad("That file has no recognisable data."); return; }
     state = next; save(); render(); ok();
   };
   r.onerror = () => bad("Couldn't read that file.");
